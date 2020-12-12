@@ -99,7 +99,6 @@ end
 
 function launch(manager::K8sNativeManager, params::Dict, launched::Array, c::Condition)
     asyncmap(collect(pairs(manager.pods))) do p
-        sleep(rand() * 3)
         try
             port, pod = p
             result = put!(manager.ctx, pod)
