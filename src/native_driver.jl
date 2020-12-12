@@ -26,7 +26,7 @@ Kuber object representing a pod with a single worker container.
 
 If `isnothing(image) == true`, the driver pod is required to have a single container, whose image will be used.
 """
-function default_pod(ctx, port, cmd::Cmd, driver_name::String; image=nothing, memory::String="4Gi", cpu::String="1", base_obj=kuber_obj(ctx, empty_pod))
+function default_pod(ctx, port, cmd::Cmd, driver_name::String; image=nothing, memory::String="4Gi", cpu::String="1", base_obj=kuber_obj(ctx, empty_pod), kwargs...)
     ko = base_obj
     ko.metadata.name = "$(driver_name)-worker-$port"
     cmdo = `$cmd --bind-to=0:$port`
@@ -56,11 +56,11 @@ function default_pod(ctx, port, cmd::Cmd, driver_name::String; image=nothing, me
     return ko
 end
 
-function default_pods_and_context(namespace="default"; configure, image, ports, driver_name::String="driver", cmd::Cmd=`julia $(worker_arg())`)
+function default_pods_and_context(namespace="default"; configure, ports, driver_name::String="driver", cmd::Cmd=`julia $(worker_arg())`, kwargs...)
     ctx = KuberContext()
     Kuber.set_api_versions!(ctx; verbose=false)
     set_ns(ctx, namespace)
-    pods = Dict(port => configure(default_pod(ctx, port, cmd, driver_name; image=image)) for port in ports)
+    pods = Dict(port => configure(default_pod(ctx, port, cmd, driver_name; kwargs...)) for port in ports)
     return pods, ctx
 end
 
@@ -71,11 +71,11 @@ struct K8sNativeManager <: ClusterManager
     function K8sNativeManager(ports,
                               driver_name::String,
                               cmd::Cmd;
-                              image::Union{Nothing, String}=nothing,
                               configure=identity,
                               namespace::String="default",
-                              retry_seconds::Int=120)
-        pods, ctx = default_pods_and_context(namespace; image=image, configure=configure, driver_name=driver_name, ports=ports, cmd=cmd)
+                              retry_seconds::Int=120,
+                              kwargs...)
+        pods, ctx = default_pods_and_context(namespace; configure=configure, driver_name=driver_name, ports=ports, cmd=cmd, kwargs...)
         return new(ctx, pods, retry_seconds)
     end
 end
@@ -99,10 +99,12 @@ end
 
 function launch(manager::K8sNativeManager, params::Dict, launched::Array, c::Condition)
     asyncmap(collect(pairs(manager.pods))) do p
+        sleep(rand() * 3)
         try
             port, pod = p
             result = put!(manager.ctx, pod)
             status = wait_for_pod_init(manager, pod)
+            sleep(2)
             config = WorkerConfig()
             config.host = status.podIP
             config.port = port
@@ -115,10 +117,34 @@ function launch(manager::K8sNativeManager, params::Dict, launched::Array, c::Con
     end
 end
 
+"""
+    addprocs_pod(np::Int;
+                 configure=identity,
+                 namespace::String="default",
+                 image=nothing,
+                 memory::String="4Gi",
+                 cpu::String="1",
+                 retry_seconds::Int=120,
+                 exename=`julia`,
+                 exeflags=``,
+                 params...)
+
+Launch and connect to `np` worker processes.
+
+If `image` is unspecified
+- if the julia caller is in a pod containing a single container, its image will be used for the pods as well.
+- if there are multiple containers in the driver's pod, an error is thrown.
+
+For more advanced configuration,
+`configure` will be applied to the `Kuber.jl` pod specs of worker nodes before applying them.
+"""
 function addprocs_pod(np::Int;
                       driver_name::String=get(ENV, "HOSTNAME", "localhost"),
                       configure=identity,
                       namespace::String="default",
+                      image=nothing,
+                      memory::String="4Gi",
+                      cpu::String="1",
                       retry_seconds::Int=120,
                       exename=`julia`,
                       exeflags=``,
@@ -128,6 +154,9 @@ function addprocs_pod(np::Int;
                                      driver_name,
                                      cmd;
                                      configure=configure,
+                                     image=image,
+                                     memory=memory,
+                                     cpu=cpu,
                                      namespace=namespace,
                                      retry_seconds=retry_seconds);
                     merge((exename = exename,), params)...)
