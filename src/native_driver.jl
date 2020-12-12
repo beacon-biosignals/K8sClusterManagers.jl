@@ -26,7 +26,7 @@ Kuber object representing a pod with a single worker container.
 
 If `isnothing(image) == true`, the driver pod is required to have a single container, whose image will be used.
 """
-function default_pod(ctx, port, cmd::Cmd, driver_name::String; image=nothing, memory::String="4Gi", cpu::String="1", base_obj=kuber_obj(ctx, empty_pod), kwargs...)
+function default_pod(ctx, port, cmd::Cmd, driver_name::String; image=nothing, memory::String="4Gi", cpu::String="1", serviceAccountName=nothing, base_obj=kuber_obj(ctx, empty_pod), kwargs...)
     ko = base_obj
     ko.metadata.name = "$(driver_name)-worker-$port"
     cmdo = `$cmd --bind-to=0:$port`
@@ -53,6 +53,9 @@ function default_pod(ctx, port, cmd::Cmd, driver_name::String; image=nothing, me
         },
         "imagePullPolicy": "Always"
     }""")
+    if !isnothing(serviceAccountName)
+        ko.spec.serviceAccountName = serviceAccountName
+    end
     return ko
 end
 
@@ -99,8 +102,8 @@ end
 
 function launch(manager::K8sNativeManager, params::Dict, launched::Array, c::Condition)
     asyncmap(collect(pairs(manager.pods))) do p
-        try
-            port, pod = p
+        port, pod = p
+        @repeat 3 try
             result = put!(manager.ctx, pod)
             status = wait_for_pod_init(manager, pod)
             sleep(2)
@@ -111,6 +114,7 @@ function launch(manager::K8sNativeManager, params::Dict, launched::Array, c::Con
             push!(launched, config)
             notify(c)
         catch e
+            @delay_retry if e.e.msg == "stream is closed or unusable" end
             @error "error launching pod on port $(first(p)) with config $(last(p))" exception=(e, catch_backtrace())
         end
     end
@@ -142,6 +146,7 @@ function addprocs_pod(np::Int;
                       configure=identity,
                       namespace::String="default",
                       image=nothing,
+                      serviceAccountName=nothing,
                       memory::String="4Gi",
                       cpu::String="1",
                       retry_seconds::Int=120,

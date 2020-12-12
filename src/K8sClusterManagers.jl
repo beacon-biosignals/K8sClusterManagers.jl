@@ -3,6 +3,7 @@ module K8sClusterManagers
 using Distributed
 using JSON
 using Kuber
+using Retry
 
 import Distributed: launch, manage, kill
 
