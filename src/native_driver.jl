@@ -204,6 +204,7 @@ manage(manager::K8sNativeManager, id::Int64, config::WorkerConfig, op::Symbol) =
 
 function kill(manager::K8sNativeManager, id::Int64, config::WorkerConfig)
     sleeptime = 0.1 * sqrt(length(manager.pods))
+    start = now()
     asyncmap(values(manager.pods)) do pod
         sleep(rand() * sleeptime)
         while now() - start < Second(manager.retry_seconds)
