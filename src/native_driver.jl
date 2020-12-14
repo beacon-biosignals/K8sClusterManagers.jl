@@ -3,6 +3,7 @@ const empty_pod = """{
     "kind": "Pod",
     "metadata": {},
     "spec": {
+        "restartPolicy": "Never",
         "tolerations": [],
         "containers": [],
         "affinity": {}
@@ -103,20 +104,19 @@ end
 function launch(manager::K8sNativeManager, params::Dict, launched::Array, c::Condition)
     asyncmap(collect(pairs(manager.pods))) do p
         port, pod = p
-        @repeat 3 try
+        @repeat 6 try
             result = put!(manager.ctx, pod)
-            status = wait_for_pod_init(manager, pod)
-            sleep(2)
-            config = WorkerConfig()
-            config.host = status.podIP
-            config.port = port
-            config.userdata = pod.metadata.name
-            push!(launched, config)
-            notify(c)
         catch e
-            @delay_retry if e.e.msg == "stream is closed or unusable" end
-            @error "error launching pod on port $(first(p)) with config $(last(p))" exception=(e, catch_backtrace())
+            @delay_retry if true end
         end
+        status = wait_for_pod_init(manager, pod)
+        sleep(2)
+        config = WorkerConfig()
+        config.host = status.podIP
+        config.port = port
+        config.userdata = pod.metadata.name
+        push!(launched, config)
+        notify(c)
     end
 end
 
