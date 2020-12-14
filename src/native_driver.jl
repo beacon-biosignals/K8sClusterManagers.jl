@@ -77,39 +77,53 @@ struct K8sNativeManager <: ClusterManager
                               cmd::Cmd;
                               configure=identity,
                               namespace::String="default",
-                              retry_seconds::Int=70,
+                              retry_seconds::Int,
                               kwargs...)
         pods, ctx = default_pods_and_context(namespace; configure=configure, driver_name=driver_name, ports=ports, cmd=cmd, kwargs...)
         return new(ctx, pods, retry_seconds)
     end
 end
 
+struct TimeoutException <: Exception
+    msg::String
+    cause::Exception
+end
+
 function wait_for_pod_init(manager::K8sNativeManager, pod)
     status = nothing
-    for i in 1:manager.retry_seconds
-        @repeat 6 try
+    start = now()
+    while true
+        sleep(1 + rand())
+        try
             status = get(manager.ctx, :Pod, pod.metadata.name).status
             if status.phase == "Running"
                 @info "$(pod.metadata.name) is up"
                 return status
             end
         catch e
-            @delay_retry if true end
-            i == manager.retry_seconds && @error "error in `Kuber.get(ctx, :Pod, $(pod.metadata.name))`" exception=(e, catch_backtrace())
+            if now() - start > Second(manager.retry_seconds)
+                throw(TimeoutException("timed out after waiting for worker $(pod.metadata.name) to init for $(manager.retry_seconds) seconds, with status\n $status", e))
+            end
         end
-        sleep(1)
     end
-    error("timed out after waiting for worker $(pod.metadata.name) to init for $(manager.retry_seconds) seconds, with status\n $status")
+    throw(TimeoutException("timed out after waiting for worker $(pod.metadata.name) to init for $(manager.retry_seconds) seconds, with status\n $status", e))
 end
 
 function launch(manager::K8sNativeManager, params::Dict, launched::Array, c::Condition)
+    errors = Dict()
+    sleeptime = 0.1 * sqrt(length(manager.pods))
     asyncmap(collect(pairs(manager.pods))) do p
         port, pod = p
+        start = now()
         try
-            @repeat 6 try
-                result = put!(manager.ctx, pod)
-            catch e
-                @delay_retry if true end
+            sleep(rand() * sleeptime)
+            while now() - start < Second(manager.retry_seconds)
+                try
+                    put!(manager.ctx, pod)
+                    break
+                catch e
+                    sleep(rand() * sleeptime)
+                end
             end
             status = wait_for_pod_init(manager, pod)
             sleep(2)
@@ -120,13 +134,22 @@ function launch(manager::K8sNativeManager, params::Dict, launched::Array, c::Con
             push!(launched, config)
             notify(c)
         catch e
-            @error "error launching job on port $port, deleting pod and skipping!" exception=(e, catch_backtrace())
-            @repeat 4 try
-                delete!(manager.ctx, :Pod, pod.metadata.name)
-            catch e
-                @delay_retry if true end
+            @error "error launching job on port $port, deleting pod and skipping!"
+            push!(get!(() -> [], errors, typeof(e)), (e, catch_backtrace()))
+            start_delete = now()
+            while now() - start_delete < Second(5)
+                try
+                    delete!(manager.ctx, :Pod, pod.metadata.name)
+                    break
+                catch e
+                    sleep(rand())
+                end
             end
         end
+    end
+    for erray in values(errors)
+        e, backtrace = first(erray)
+        @warn "$(length(erray)) errors with the same type as" exception=(e, backtrace)
     end
 end
 
@@ -137,7 +160,7 @@ end
                  image=nothing,
                  memory::String="4Gi",
                  cpu::String="1",
-                 retry_seconds::Int=120,
+                 retry_seconds::Int=180,
                  exename=`julia`,
                  exeflags=``,
                  params...)
@@ -160,7 +183,7 @@ function addprocs_pod(np::Int;
                       serviceAccountName=nothing,
                       memory::String="4Gi",
                       cpu::String="1",
-                      retry_seconds::Int=120,
+                      retry_seconds::Int=180,
                       exename=`julia`,
                       exeflags=``,
                       params...)
@@ -180,12 +203,16 @@ end
 manage(manager::K8sNativeManager, id::Int64, config::WorkerConfig, op::Symbol) = nothing
 
 function kill(manager::K8sNativeManager, id::Int64, config::WorkerConfig)
+    sleeptime = 0.1 * sqrt(length(manager.pods))
     asyncmap(values(manager.pods)) do pod
-        @repeat 4 try
-            delete!(manager.ctx, :Pod, pod.metadata.name)
-            @info "Termination scheduled for $(pod.metadata.name)"
-        catch e
-            @delay_retry if true end
+        sleep(rand() * sleeptime)
+        while now() - start < Second(manager.retry_seconds)
+            try
+                delete!(manager.ctx, :Pod, pod.metadata.name)
+                break
+            catch e
+                sleep(rand() * sleeptime)
+            end
         end
     end
 end
