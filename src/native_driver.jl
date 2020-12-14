@@ -3,6 +3,7 @@ const empty_pod = """{
     "kind": "Pod",
     "metadata": {},
     "spec": {
+        "restartPolicy": "Never",
         "tolerations": [],
         "containers": [],
         "affinity": {}
@@ -76,7 +77,7 @@ struct K8sNativeManager <: ClusterManager
                               cmd::Cmd;
                               configure=identity,
                               namespace::String="default",
-                              retry_seconds::Int=120,
+                              retry_seconds::Int=70,
                               kwargs...)
         pods, ctx = default_pods_and_context(namespace; configure=configure, driver_name=driver_name, ports=ports, cmd=cmd, kwargs...)
         return new(ctx, pods, retry_seconds)
@@ -86,13 +87,14 @@ end
 function wait_for_pod_init(manager::K8sNativeManager, pod)
     status = nothing
     for i in 1:manager.retry_seconds
-        try
+        @repeat 6 try
             status = get(manager.ctx, :Pod, pod.metadata.name).status
             if status.phase == "Running"
                 @info "$(pod.metadata.name) is up"
                 return status
             end
         catch e
+            @delay_retry if true end
             i == manager.retry_seconds && @error "error in `Kuber.get(ctx, :Pod, $(pod.metadata.name))`" exception=(e, catch_backtrace())
         end
         sleep(1)
@@ -103,8 +105,12 @@ end
 function launch(manager::K8sNativeManager, params::Dict, launched::Array, c::Condition)
     asyncmap(collect(pairs(manager.pods))) do p
         port, pod = p
-        @repeat 3 try
-            result = put!(manager.ctx, pod)
+        try
+            @repeat 6 try
+                result = put!(manager.ctx, pod)
+            catch e
+                @delay_retry if true end
+            end
             status = wait_for_pod_init(manager, pod)
             sleep(2)
             config = WorkerConfig()
@@ -114,8 +120,12 @@ function launch(manager::K8sNativeManager, params::Dict, launched::Array, c::Con
             push!(launched, config)
             notify(c)
         catch e
-            @delay_retry if e.e.msg == "stream is closed or unusable" end
-            @error "error launching pod on port $(first(p)) with config $(last(p))" exception=(e, catch_backtrace())
+            @error "error launching job on port $port, deleting pod and skipping!" exception=(e, catch_backtrace())
+            @repeat 4 try
+                delete!(manager.ctx, :Pod, pod.metadata.name)
+            catch e
+                @delay_retry if true end
+            end
         end
     end
 end
@@ -133,6 +143,7 @@ end
                  params...)
 
 Launch and connect to `np` worker processes.
+This may launch and return fewer pids than requested, if requested workers do not come online within `retry_seconds`.
 
 If `image` is unspecified
 - if the julia caller is in a pod containing a single container, its image will be used for the pods as well.
@@ -170,7 +181,11 @@ manage(manager::K8sNativeManager, id::Int64, config::WorkerConfig, op::Symbol) =
 
 function kill(manager::K8sNativeManager, id::Int64, config::WorkerConfig)
     asyncmap(values(manager.pods)) do pod
-        delete!(manager.ctx, :Pod, pod.metadata.name)
-        @info "Termination scheduled for $(pod.metadata.name)"
+        @repeat 4 try
+            delete!(manager.ctx, :Pod, pod.metadata.name)
+            @info "Termination scheduled for $(pod.metadata.name)"
+        catch e
+            @delay_retry if true end
+        end
     end
 end
