@@ -196,6 +196,7 @@ function addprocs_pod(np::Int;
                                      memory=memory,
                                      cpu=cpu,
                                      namespace=namespace,
+                                     serviceAccountName=serviceAccountName,
                                      retry_seconds=retry_seconds);
                     merge((exename = exename,), params)...)
 end
