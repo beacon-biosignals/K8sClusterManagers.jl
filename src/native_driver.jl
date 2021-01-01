@@ -93,6 +93,7 @@ function wait_for_pod_init(manager::K8sNativeManager, pod)
     status = nothing
     start = now()
     while true
+        # try not to overwhelm kubectl proxy; staggered wait
         sleep(1 + rand())
         try
             status = get(manager.ctx, :Pod, pod.metadata.name).status
@@ -111,6 +112,7 @@ end
 
 function launch(manager::K8sNativeManager, params::Dict, launched::Array, c::Condition)
     errors = Dict()
+    # try not to overwhelm kubectl proxy; wait longer if more workers requested
     sleeptime = 0.1 * sqrt(length(manager.pods))
     asyncmap(collect(pairs(manager.pods))) do p
         port, pod = p
