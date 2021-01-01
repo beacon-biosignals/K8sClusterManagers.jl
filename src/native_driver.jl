@@ -3,6 +3,7 @@ const empty_pod = """{
     "kind": "Pod",
     "metadata": {},
     "spec": {
+        "restartPolicy": "Never",
         "tolerations": [],
         "containers": [],
         "affinity": {}
@@ -26,7 +27,7 @@ Kuber object representing a pod with a single worker container.
 
 If `isnothing(image) == true`, the driver pod is required to have a single container, whose image will be used.
 """
-function default_pod(ctx, port, cmd::Cmd, driver_name::String; image=nothing, memory::String="4Gi", cpu::String="1", base_obj=kuber_obj(ctx, empty_pod))
+function default_pod(ctx, port, cmd::Cmd, driver_name::String; image=nothing, memory::String="4Gi", cpu::String="1", serviceAccountName=nothing, base_obj=kuber_obj(ctx, empty_pod), kwargs...)
     ko = base_obj
     ko.metadata.name = "$(driver_name)-worker-$port"
     cmdo = `$cmd --bind-to=0:$port`
@@ -53,14 +54,17 @@ function default_pod(ctx, port, cmd::Cmd, driver_name::String; image=nothing, me
         },
         "imagePullPolicy": "Always"
     }""")
+    if !isnothing(serviceAccountName)
+        ko.spec.serviceAccountName = serviceAccountName
+    end
     return ko
 end
 
-function default_pods_and_context(namespace="default"; configure, image, ports, driver_name::String="driver", cmd::Cmd=`julia $(worker_arg())`)
+function default_pods_and_context(namespace="default"; configure, ports, driver_name::String="driver", cmd::Cmd=`julia $(worker_arg())`, kwargs...)
     ctx = KuberContext()
     Kuber.set_api_versions!(ctx; verbose=false)
     set_ns(ctx, namespace)
-    pods = Dict(port => configure(default_pod(ctx, port, cmd, driver_name; image=image)) for port in ports)
+    pods = Dict(port => configure(default_pod(ctx, port, cmd, driver_name; kwargs...)) for port in ports)
     return pods, ctx
 end
 
@@ -71,18 +75,26 @@ struct K8sNativeManager <: ClusterManager
     function K8sNativeManager(ports,
                               driver_name::String,
                               cmd::Cmd;
-                              image::Union{Nothing, String}=nothing,
                               configure=identity,
                               namespace::String="default",
-                              retry_seconds::Int=120)
-        pods, ctx = default_pods_and_context(namespace; image=image, configure=configure, driver_name=driver_name, ports=ports, cmd=cmd)
+                              retry_seconds::Int,
+                              kwargs...)
+        pods, ctx = default_pods_and_context(namespace; configure=configure, driver_name=driver_name, ports=ports, cmd=cmd, kwargs...)
         return new(ctx, pods, retry_seconds)
     end
 end
 
+struct TimeoutException <: Exception
+    msg::String
+    cause::Exception
+end
+
 function wait_for_pod_init(manager::K8sNativeManager, pod)
     status = nothing
-    for i in 1:manager.retry_seconds
+    start = now()
+    while true
+        # try not to overwhelm kubectl proxy; staggered wait
+        sleep(1 + rand())
         try
             status = get(manager.ctx, :Pod, pod.metadata.name).status
             if status.phase == "Running"
@@ -90,19 +102,33 @@ function wait_for_pod_init(manager::K8sNativeManager, pod)
                 return status
             end
         catch e
-            i == manager.retry_seconds && @error "error in `Kuber.get(ctx, :Pod, $(pod.metadata.name))`" exception=(e, catch_backtrace())
+            if now() - start > Second(manager.retry_seconds)
+                throw(TimeoutException("timed out after waiting for worker $(pod.metadata.name) to init for $(manager.retry_seconds) seconds, with status\n $status", e))
+            end
         end
-        sleep(1)
     end
-    error("timed out after waiting for worker $(pod.metadata.name) to init for $(manager.retry_seconds) seconds, with status\n $status")
+    throw(TimeoutException("timed out after waiting for worker $(pod.metadata.name) to init for $(manager.retry_seconds) seconds, with status\n $status", e))
 end
 
 function launch(manager::K8sNativeManager, params::Dict, launched::Array, c::Condition)
+    errors = Dict()
+    # try not to overwhelm kubectl proxy; wait longer if more workers requested
+    sleeptime = 0.1 * sqrt(length(manager.pods))
     asyncmap(collect(pairs(manager.pods))) do p
+        port, pod = p
+        start = now()
         try
-            port, pod = p
-            result = put!(manager.ctx, pod)
+            sleep(rand() * sleeptime)
+            while now() - start < Second(manager.retry_seconds)
+                try
+                    put!(manager.ctx, pod)
+                    break
+                catch e
+                    sleep(rand() * sleeptime)
+                end
+            end
             status = wait_for_pod_init(manager, pod)
+            sleep(2)
             config = WorkerConfig()
             config.host = status.podIP
             config.port = port
@@ -110,16 +136,56 @@ function launch(manager::K8sNativeManager, params::Dict, launched::Array, c::Con
             push!(launched, config)
             notify(c)
         catch e
-            @error "error launching pod on port $(first(p)) with config $(last(p))" exception=(e, catch_backtrace())
+            @error "error launching job on port $port, deleting pod and skipping!"
+            push!(get!(() -> [], errors, typeof(e)), (e, catch_backtrace()))
+            start_delete = now()
+            while now() - start_delete < Second(5)
+                try
+                    delete!(manager.ctx, :Pod, pod.metadata.name)
+                    break
+                catch e
+                    sleep(rand())
+                end
+            end
         end
+    end
+    for erray in values(errors)
+        e, backtrace = first(erray)
+        @warn "$(length(erray)) errors with the same type as" exception=(e, backtrace)
     end
 end
 
+"""
+    addprocs_pod(np::Int;
+                 configure=identity,
+                 namespace::String="default",
+                 image=nothing,
+                 memory::String="4Gi",
+                 cpu::String="1",
+                 retry_seconds::Int=180,
+                 exename=`julia`,
+                 exeflags=``,
+                 params...)
+
+Launch and connect to `np` worker processes.
+This may launch and return fewer pids than requested, if requested workers do not come online within `retry_seconds`.
+
+If `image` is unspecified
+- if the julia caller is in a pod containing a single container, its image will be used for the pods as well.
+- if there are multiple containers in the driver's pod, an error is thrown.
+
+For more advanced configuration,
+`configure` will be applied to the `Kuber.jl` pod specs of worker nodes before applying them.
+"""
 function addprocs_pod(np::Int;
                       driver_name::String=get(ENV, "HOSTNAME", "localhost"),
                       configure=identity,
                       namespace::String="default",
-                      retry_seconds::Int=120,
+                      image=nothing,
+                      serviceAccountName=nothing,
+                      memory::String="4Gi",
+                      cpu::String="1",
+                      retry_seconds::Int=180,
                       exename=`julia`,
                       exeflags=``,
                       params...)
@@ -128,7 +194,11 @@ function addprocs_pod(np::Int;
                                      driver_name,
                                      cmd;
                                      configure=configure,
+                                     image=image,
+                                     memory=memory,
+                                     cpu=cpu,
                                      namespace=namespace,
+                                     serviceAccountName=serviceAccountName,
                                      retry_seconds=retry_seconds);
                     merge((exename = exename,), params)...)
 end
@@ -136,8 +206,17 @@ end
 manage(manager::K8sNativeManager, id::Int64, config::WorkerConfig, op::Symbol) = nothing
 
 function kill(manager::K8sNativeManager, id::Int64, config::WorkerConfig)
+    sleeptime = 0.1 * sqrt(length(manager.pods))
+    start = now()
     asyncmap(values(manager.pods)) do pod
-        delete!(manager.ctx, :Pod, pod.metadata.name)
-        @info "Termination scheduled for $(pod.metadata.name)"
+        sleep(rand() * sleeptime)
+        while now() - start < Second(manager.retry_seconds)
+            try
+                delete!(manager.ctx, :Pod, pod.metadata.name)
+                break
+            catch e
+                sleep(rand() * sleeptime)
+            end
+        end
     end
 end
