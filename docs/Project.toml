@@ -1,5 +1,6 @@
 [deps]
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
+K8sClusterManagers = "5aeab163-63d2-4171-9fbf-e22244d80acb"
 
 [compat]
 Documenter = "~0.23"
