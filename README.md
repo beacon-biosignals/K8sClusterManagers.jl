@@ -1,5 +1,9 @@
 # K8sClusterManagers
 
+[![Build Status](https://travis-ci.com/beacon-biosignals/K8sClusterManagers.jl.svg?branch=main)](https://travis-ci.com/beacon-biosignals/K8sClusterManagers.jl)
+[![Docs: stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://beacon-biosignals.github.io/K8sClusterManagers.jl/stable)
+[![Docs: development](https://img.shields.io/badge/docs-dev-blue.svg)](https://beacon-biosignals.github.io/K8sClusterManagers.jl/dev)
+
 This repo contains a cluster manager for provisioning julia workers on a k8s cluster, making minimal assumptions about your cluster setup.
 
 ## K8sNativeManager
