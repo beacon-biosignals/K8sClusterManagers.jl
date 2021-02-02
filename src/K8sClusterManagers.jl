@@ -15,10 +15,18 @@ export addprocs_pod
 export K8sNativeManager
 export launch, manage, kill
 
-function __init__()
+const kubectl_proxy_process = Ref{Base.Process}()
+
+function restart_kubectl_proxy()
+    port = get(ENV, "KUBECTL_PROXY_PORT", 8001)
+    if isassigned(kubectl_proxy_process)
+        kill(kubectl_proxy_process[])
+    end
     kubectl() do exe
-        run(`$exe proxy --port=8001`; wait=false)
+        kubectl_proxy_process[] = run(`$exe proxy --port=$port`; wait=false)
     end
 end
+
+__init__() = restart_kubectl_proxy()
 
 end
