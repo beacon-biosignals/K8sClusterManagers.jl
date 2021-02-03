@@ -12,7 +12,10 @@ This is a `ClusterManager` for usage from a driver julia session that:
 - is running on the cluster already.
 - has access to a working `kubectl` (from the julia-running-in-k8s-container context)
 
-You can easily set yourself up with just such a julia session. Assuming you have `kubectl` installed locally and configured to connect to a cluster in namespace "my-namespace", the following `driver.yaml` file containing a pod spec
+Assuming you have `kubectl` installed locally and configured to connect to a cluster in namespace "my-namespace",
+you can easily set yourself up with just such a julia session by running for example `kubectl run example-driver-pod -it --image julia:1.5.3 -n my-namespace`.
+
+Or equivlently, the following `driver.yaml` file containing a pod spec
 
 ```yaml
 apiVersion: v1
@@ -21,17 +24,13 @@ metadata:
     name: example-driver-pod
 spec:
     containers:
-        - name: kubectl-sidecar
-          image: bitnami/kubectl
-          command: ["kubectl"]
-          args: ["proxy", "--port=8001"]
         - name: driver
-          image: julia:1.5.2
+          image: julia:1.5.3
           stdin: true
           tty: true
 ```
 
-will get you a julia REPL running in the cluster alongside a `kubectl proxy` that it can talk to, by doing:
+will drop you into a julia REPL running in the cluster by doing:
 
 ```bash
 kubectl apply -f driver.yaml -n my-namespace
@@ -43,6 +42,8 @@ kubectl attach pod/example-driver-pod -c driver -it -n my-namespace
 Now in this julia REPL session, you can do:
 
 ```julia
+]add K8sClusterManagers
+
 using K8sClusterManagers
 
 pids = K8sClusterManagers.addprocs_pod(2; namespace="my-namespace")
