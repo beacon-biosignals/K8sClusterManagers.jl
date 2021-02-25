@@ -1,6 +1,6 @@
 # K8sClusterManagers
 
-[![Build Status](https://travis-ci.com/beacon-biosignals/K8sClusterManagers.jl.svg?branch=main)](https://travis-ci.com/beacon-biosignals/K8sClusterManagers.jl)
+[![CI](https://github.com/beacon-biosignals/K8sClusterManagers.jl/actions/workflows/CI.yml/badge.svg)](https://github.com/beacon-biosignals/K8sClusterManagers.jl/actions/workflows/CI.yml)
 [![Docs: stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://beacon-biosignals.github.io/K8sClusterManagers.jl/stable)
 [![Docs: development](https://img.shields.io/badge/docs-dev-blue.svg)](https://beacon-biosignals.github.io/K8sClusterManagers.jl/dev)
 
@@ -111,4 +111,3 @@ where the pod name `pod_name` you can get from `kubectl get pods -n my-namespace
 ```bash
 kubectl describe pod pod_name -n my-namespace
 ```
-
