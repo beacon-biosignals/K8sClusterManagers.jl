@@ -15,15 +15,21 @@ export addprocs_pod
 export K8sNativeManager
 export launch, manage, kill
 
-const kubectl_proxy_process = Ref{Base.Process}()
+const KUBECTL_PROXY_PROCESS = Ref{Base.Process}()
 
 function restart_kubectl_proxy()
     port = get(ENV, "KUBECTL_PROXY_PORT", 8001)
-    if isassigned(kubectl_proxy_process)
-        kill(kubectl_proxy_process[])
+    if isassigned(KUBECTL_PROXY_PROCESS)
+        kill(KUBECTL_PROXY_PROCESS[])
     end
-    kubectl() do exe
-        kubectl_proxy_process[] = run(`$exe proxy --port=$port`; wait=false)
+
+    # Note: Preferring thread-safe executable product wrapper when available
+    KUBECTL_PROXY_PROCESS[] = if VERSION >= v"1.6.0-DEV"
+        run(`$(kubectl()) proxy --port=$port`; wait=false)
+    else
+        kubectl() do exe
+            run(`$exe proxy --port=$port`; wait=false)
+        end
     end
 end
 
