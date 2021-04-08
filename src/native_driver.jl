@@ -57,7 +57,7 @@ function default_pods_and_context(namespace="default"; configure, ports, driver_
 end
 
 struct K8sNativeManager <: ClusterManager
-    ctx::Any
+    ctx::KuberContext
     pods::Dict{Int, Any}
     retry_seconds::Int
     function K8sNativeManager(ports,
