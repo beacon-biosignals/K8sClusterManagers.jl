@@ -102,8 +102,7 @@ function launch(manager::K8sNativeManager, params::Dict, launched::Array, c::Con
     errors = Dict()
     # try not to overwhelm kubectl proxy; wait longer if more workers requested
     sleeptime = 0.1 * sqrt(length(manager.pods))
-    asyncmap(collect(pairs(manager.pods))) do p
-        port, pod = p
+    asyncmap(collect(pairs(manager.pods))) do (port, pod)
         start = time()
         try
             sleep(rand() * sleeptime)
