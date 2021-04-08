@@ -1,14 +1,10 @@
-
-const empty_pod = """{
-    "kind": "Pod",
-    "metadata": {},
-    "spec": {
-        "restartPolicy": "Never",
-        "tolerations": [],
-        "containers": [],
-        "affinity": {}
-    }
-}"""
+const EMPTY_POD = \
+    json(Dict("kind" => "Pod",
+              "metadata" => Dict(),
+              "spec" => Dict("restartPolicy" => "Never",
+                             "tolerations" => [],
+                             "containers" => [],
+                             "affinity" => Dict())))
 
 """
     self_pod(ctx::KuberContext)
@@ -21,13 +17,13 @@ end
 
 
 """
-    default_pod(ctx, port, cmd::Cmd, driver_name::String; image=nothing, memory::String="4Gi", cpu::String="1", base_obj=kuber_obj(ctx, empty_pod))
+    default_pod(ctx, port, cmd::Cmd, driver_name::String; image=nothing, memory::String="4Gi", cpu::String="1", base_obj=kuber_obj(ctx, EMPTY_POD))
 
 Kuber object representing a pod with a single worker container.
 
 If `isnothing(image) == true`, the driver pod is required to have a single container, whose image will be used.
 """
-function default_pod(ctx, port, cmd::Cmd, driver_name::String; image=nothing, memory::String="4Gi", cpu::String="1", serviceAccountName=nothing, base_obj=kuber_obj(ctx, empty_pod), kwargs...)
+function default_pod(ctx, port, cmd::Cmd, driver_name::String; image=nothing, memory::String="4Gi", cpu::String="1", serviceAccountName=nothing, base_obj=kuber_obj(ctx, EMPTY_POD), kwargs...)
     ko = base_obj
     ko.metadata.name = "$(driver_name)-worker-$port"
     cmdo = `$cmd --bind-to=0:$port`
@@ -38,22 +34,14 @@ function default_pod(ctx, port, cmd::Cmd, driver_name::String; image=nothing, me
         end
         image = last(self.spec.containers).image
     end
-    push!(ko.spec.containers, """{
-        "name": "$(driver_name)-worker-$port",
-        "image": "$image",
-        "command": $(json(collect(cmdo))),
-        "resources": {
-            "requests": {
-                "memory": "$memory",
-                "cpu": "$cpu"
-            },
-            "limits": {
-                "memory": "$memory",
-                "cpu": "$cpu"
-            }
-        },
-        "imagePullPolicy": "Always"
-    }""")
+    push!(ko.spec.containers,
+          json(Dict("name" => "$(driver_name)-worker-$port",
+                    "image" => image,
+                    "command" => collect(cmdo),
+                    "resources" => Dict("requests" => Dict("memory" => memory,
+                                                           "cpu" => cpu)),
+                                        "limit"    => Dict("memory" => memory,
+                                                           "cpu" => cpu))))
     if !isnothing(serviceAccountName)
         ko.spec.serviceAccountName = serviceAccountName
     end
