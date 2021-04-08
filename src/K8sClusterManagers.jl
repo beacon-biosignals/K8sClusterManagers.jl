@@ -16,18 +16,18 @@ export addprocs_pod
 export K8sNativeManager
 export launch, manage, kill
 
-const kubectl_proxy_process = Ref{Base.Process}()
+const KUBECTL_PROXY_PROCESS = Ref{Base.Process}()
 
 function restart_kubectl_proxy()
     # Note: "KUBECTL_PROXY_PORT" is a made up environmental variable and is not supported by
     # `kubectl proxy`. The default port (8001) is what `kubectl proxy` uses when `--port` is
     # not specified.
     port = get(ENV, "KUBECTL_PROXY_PORT", 8001)
-    if isassigned(kubectl_proxy_process)
-        kill(kubectl_proxy_process[])
+    if isassigned(KUBECTL_PROXY_PROCESS)
+        kill(KUBECTL_PROXY_PROCESS[])
     end
     kubectl() do exe
-        kubectl_proxy_process[] = run(`$exe proxy --port=$port`; wait=false)
+        KUBECTL_PROXY_PROCESS[] = run(`$exe proxy --port=$port`; wait=false)
     end
 end
 
