@@ -79,7 +79,7 @@ end
 
 function wait_for_pod_init(manager::K8sNativeManager, pod)
     status = nothing
-    start = now()
+    start = time()
     while true
         # try not to overwhelm kubectl proxy; staggered wait
         sleep(1 + rand())
@@ -90,7 +90,7 @@ function wait_for_pod_init(manager::K8sNativeManager, pod)
                 return status
             end
         catch e
-            if now() - start > Second(manager.retry_seconds)
+            if time() - start > manager.retry_seconds
                 throw(TimeoutException("timed out after waiting for worker $(pod.metadata.name) to init for $(manager.retry_seconds) seconds, with status\n $status", e))
             end
         end
@@ -104,10 +104,10 @@ function launch(manager::K8sNativeManager, params::Dict, launched::Array, c::Con
     sleeptime = 0.1 * sqrt(length(manager.pods))
     asyncmap(collect(pairs(manager.pods))) do p
         port, pod = p
-        start = now()
+        start = time()
         try
             sleep(rand() * sleeptime)
-            while now() - start < Second(manager.retry_seconds)
+            while time() - start < manager.retry_seconds
                 try
                     put!(manager.ctx, pod)
                     break
@@ -126,8 +126,8 @@ function launch(manager::K8sNativeManager, params::Dict, launched::Array, c::Con
         catch e
             @error "error launching job on port $port, deleting pod and skipping!"
             push!(get!(() -> [], errors, typeof(e)), (e, catch_backtrace()))
-            start_delete = now()
-            while now() - start_delete < Second(5)
+            start = time()
+            while time() - start < 5
                 try
                     delete!(manager.ctx, :Pod, pod.metadata.name)
                     break
@@ -195,10 +195,10 @@ manage(manager::K8sNativeManager, id::Int64, config::WorkerConfig, op::Symbol) =
 
 function kill(manager::K8sNativeManager, id::Int64, config::WorkerConfig)
     sleeptime = 0.1 * sqrt(length(manager.pods))
-    start = now()
+    start = time()
     asyncmap(values(manager.pods)) do pod
         sleep(rand() * sleeptime)
-        while now() - start < Second(manager.retry_seconds)
+        while time() - start < manager.retry_seconds
             try
                 delete!(manager.ctx, :Pod, pod.metadata.name)
                 break
