@@ -64,7 +64,11 @@ function default_pods_and_context(namespace="default"; configure, ports, driver_
     ctx = KuberContext()
     Kuber.set_api_versions!(ctx; verbose=false)
     set_ns(ctx, namespace)
-    pods = Dict(port => configure(default_pod(ctx, port, cmd, driver_name; kwargs...)) for port in ports)
+
+    # Avoid using a generator with `Dict` as any raised exception would be displayed twice:
+    # https://github.com/JuliaLang/julia/issues/33147
+    pods = Dict([port => configure(default_pod(ctx, port, cmd, driver_name; kwargs...)) for port in ports])
+
     return pods, ctx
 end
 
