@@ -16,7 +16,12 @@ const empty_pod = """{
 Kuber object representing the pod this julia session is running in.
 """
 function self_pod(ctx)
-    return get(ctx, :Pod, ENV["HOSTNAME"])
+    # The following code is equivalent to calling Kuber's `get(ctx, :Pod, ENV["HOSTNAME"])`
+    # but reduces noise by avoiding nested rethrow calls.
+    # Fixed in Kuber.jl in: https://github.com/JuliaComputing/Kuber.jl/pull/26
+    isempty(ctx.apis) && Kuber.set_api_versions!(ctx)
+    api_ctx = Kuber._get_apictx(ctx, :Pod, nothing)
+    return Kuber.readNamespacedPod(api_ctx, ENV["HOSTNAME"], ctx.namespace)
 end
 
 
