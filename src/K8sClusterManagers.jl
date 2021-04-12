@@ -27,6 +27,13 @@ function restart_kubectl_proxy()
     end
 end
 
-__init__() = restart_kubectl_proxy()
+function __init__()
+    if !kubectl_jll.is_available()
+        error("kubectl_jll does not support the current platform. See: ",
+              "https://github.com/JuliaBinaryWrappers/kubectl_jll.jl#platforms")
+    end
+
+    restart_kubectl_proxy()
+end
 
 end
