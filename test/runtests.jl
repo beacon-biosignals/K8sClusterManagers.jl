@@ -1,11 +1,100 @@
 using Distributed
 using K8sClusterManagers
+using K8sClusterManagers: DEFAULT_NAMESPACE
 using Kuber: KuberContext
 using Swagger
 using Test
+using kubectl_jll: kubectl
 
 
 @testset "K8sClusterManagers" begin
+    @testset "current_namespace" begin
+        @testset "user namespace" begin
+            # Validate that we can process whatever the current system's namespace is
+            result = @test K8sClusterManagers.current_namespace() isa String
+
+            if !(result isa Test.Pass)
+                kubectl() do exe
+                    @info "kubectl config view:\n" * read(`$exe config view`, String)
+                end
+            end
+        end
+
+        @testset "multiple contexts" begin
+            config_path = tempname()
+            write(config_path,
+                  """
+                  apiVersion: v1
+                  kind: Config
+                  contexts:
+                  - context:
+                      namespace: extra-namespace
+                    name: extra
+                  - context:
+                      namespace: test-namespace
+                    name: test
+                  current-context: test
+                  """)
+
+            withenv("KUBECONFIG" => config_path) do
+                @test K8sClusterManagers.current_namespace() == "test-namespace"
+            end
+        end
+
+        # Note: Mirrors the config returned when running in the CI environment
+        @testset "no current context" begin
+            config_path = tempname()
+            write(config_path,
+                  """
+                  apiVersion: v1
+                  kind: Config
+                  current-context: ""
+                  """)
+
+            withenv("KUBECONFIG" => config_path) do
+                @test K8sClusterManagers.current_namespace() == DEFAULT_NAMESPACE
+            end
+        end
+
+        @testset "no namespace for context" begin
+            config_path = tempname()
+            write(config_path,
+                  """
+                  apiVersion: v1
+                  kind: Config
+                  contexts:
+                  - context:
+                      cluster: ""
+                      user: ""
+                    name: test
+                  current-context: test
+                  """)
+
+            withenv("KUBECONFIG" => config_path) do
+                @test K8sClusterManagers.current_namespace() == DEFAULT_NAMESPACE
+            end
+        end
+
+        # Note: Can occur when the current context is deleted
+        @testset "bad active context" begin
+            config_path = tempname()
+            write(config_path,
+                  """
+                  apiVersion: v1
+                  kind: Config
+                  contexts:
+                  - context:
+                      namespace: test-namespace
+                    name: test
+                  current-context: foo
+                  """)
+
+            withenv("KUBECONFIG" => config_path) do
+                @test K8sClusterManagers.current_namespace() == DEFAULT_NAMESPACE
+            end
+        end
+    end
+
     @testset "self_pod" begin
         @testset "non-nested exceptions" begin
             ctx = KuberContext()
