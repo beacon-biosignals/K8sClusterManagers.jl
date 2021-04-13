@@ -1,7 +1,6 @@
 using Distributed
 using K8sClusterManagers
 using Kuber: KuberContext
-using Suppressor
 using Swagger
 using Test
 using kubectl_jll: kubectl
@@ -51,11 +50,7 @@ using kubectl_jll: kubectl
                   """)
 
             withenv("KUBECONFIG" => config_path) do
-                err = @capture_err begin
-                    @test_throws ProcessFailedException K8sClusterManagers.default_namespace()
-                end
-
-                @test chomp(err) == "error: current-context must exist in order to minify"
+                @test K8sClusterManagers.default_namespace() == ""
             end
         end
 
@@ -93,11 +88,7 @@ using kubectl_jll: kubectl
                   """)
 
             withenv("KUBECONFIG" => config_path) do
-                err = @capture_err begin
-                    @test_throws ProcessFailedException K8sClusterManagers.default_namespace()
-                end
-
-                @test chomp(err) == "error: cannot locate context foo"
+                @test K8sClusterManagers.default_namespace() == ""
             end
         end
     end
