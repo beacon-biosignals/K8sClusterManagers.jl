@@ -35,6 +35,7 @@ function __init__()
               "https://github.com/JuliaBinaryWrappers/kubectl_jll.jl#platforms")
     end
 
+    # Kuber.jl expects that Kubernetes API server is available via: http://localhost:8001
     restart_kubectl_proxy()
 end
 
