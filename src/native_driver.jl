@@ -12,15 +12,15 @@ const empty_pod = """{
 
 
 """
-    default_namespace() -> String
+    current_namespace() -> String
 
-Determine the default Kubernetes namespace as specified by the current `kubectl` context.
-Typically, the default namespace is: "default".
+Determine the Kubernetes namespace as specified by the current context. Typically, the
+current namespace is: "default".
 
-If the namespace isn't set, the current context isn't set, or the current context isn't
+If the namespace is not set, the current context is not set, or the current context is not
 defined then an empty string will be returned.
 """
-function default_namespace()
+function current_namespace()
     # https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/
     # Equivalent to running `kubectl config view --minify --output='jsonpath={..namespace}'`
     # but improves handling of corner cases.
@@ -91,7 +91,7 @@ function default_pod(ctx, port, cmd::Cmd, driver_name::String; image=nothing, me
     return ko
 end
 
-function default_pods_and_context(namespace=default_namespace(); configure, ports, driver_name::String="driver", cmd::Cmd=`julia $(worker_arg())`, kwargs...)
+function default_pods_and_context(namespace=current_namespace(); configure, ports, driver_name::String="driver", cmd::Cmd=`julia $(worker_arg())`, kwargs...)
     ctx = KuberContext()
     Kuber.set_api_versions!(ctx; verbose=false)
     set_ns(ctx, namespace)
@@ -111,7 +111,7 @@ struct K8sNativeManager <: ClusterManager
                               driver_name::String,
                               cmd::Cmd;
                               configure=identity,
-                              namespace::String=default_namespace(),
+                              namespace::String=current_namespace(),
                               retry_seconds::Int,
                               kwargs...)
         pods, ctx = default_pods_and_context(namespace; configure=configure, driver_name=driver_name, ports=ports, cmd=cmd, kwargs...)
@@ -193,7 +193,7 @@ end
 """
     addprocs_pod(np::Int;
                  configure=identity,
-                 namespace::String=default_namespace(),
+                 namespace::String=current_namespace(),
                  image=nothing,
                  memory::String="4Gi",
                  cpu::String="1",
@@ -215,7 +215,7 @@ For more advanced configuration,
 function addprocs_pod(np::Int;
                       driver_name::String=get(ENV, "HOSTNAME", "localhost"),
                       configure=identity,
-                      namespace::String=default_namespace(),
+                      namespace::String=current_namespace(),
                       image=nothing,
                       serviceAccountName=nothing,
                       memory::String="4Gi",

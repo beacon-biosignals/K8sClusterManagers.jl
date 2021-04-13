@@ -7,10 +7,10 @@ using kubectl_jll: kubectl
 
 
 @testset "K8sClusterManagers" begin
-    @testset "default_namespace" begin
+    @testset "current_namespace" begin
         @testset "user namespace" begin
-            # Validate that we can process whatever the system namespace is
-            result = @test K8sClusterManagers.default_namespace() isa String
+            # Validate that we can process whatever the current system's namespace is
+            result = @test K8sClusterManagers.current_namespace() isa String
 
             if !(result isa Test.Pass)
                 kubectl() do exe
@@ -36,7 +36,7 @@ using kubectl_jll: kubectl
                   """)
 
             withenv("KUBECONFIG" => config_path) do
-                @test K8sClusterManagers.default_namespace() == "test-namespace"
+                @test K8sClusterManagers.current_namespace() == "test-namespace"
             end
         end
 
@@ -51,7 +51,7 @@ using kubectl_jll: kubectl
                   """)
 
             withenv("KUBECONFIG" => config_path) do
-                @test K8sClusterManagers.default_namespace() == ""
+                @test K8sClusterManagers.current_namespace() == ""
             end
         end
 
@@ -70,7 +70,7 @@ using kubectl_jll: kubectl
                   """)
 
             withenv("KUBECONFIG" => config_path) do
-                @test K8sClusterManagers.default_namespace() == ""
+                @test K8sClusterManagers.current_namespace() == ""
             end
         end
 
@@ -89,7 +89,7 @@ using kubectl_jll: kubectl
                   """)
 
             withenv("KUBECONFIG" => config_path) do
-                @test K8sClusterManagers.default_namespace() == ""
+                @test K8sClusterManagers.current_namespace() == ""
             end
         end
     end
