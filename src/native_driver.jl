@@ -12,20 +12,16 @@ const empty_pod = """{
 
 
 """
-    default_namespace() -> Union{String,Nothing}
+    default_namespace() -> String
 
 Determine the default Kubernetes namespace as specified by the current `kubectl` context.
-Typically, the default namespace is: "default". If no current context is set then `nothing`
-will be returned.
+Typically, the default namespace is: "default". If the current context isn't set or is does
+not exist then an exception will be thrown.
 """
 function default_namespace()
     # https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/
     kubectl() do exe
-        if !isempty(read(`$exe config view --output 'jsonpath={.current-context}'`, String))
-            read(`$exe config view --minify --output 'jsonpath={..namespace}'`, String)
-        else
-            nothing
-        end
+        read(`$exe config view --minify --output 'jsonpath={..namespace}'`, String)
     end
 end
 

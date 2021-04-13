@@ -11,7 +11,7 @@ using kubectl_jll: kubectl
     @testset "default_namespace" begin
         @testset "user namespace" begin
             # Validate that we can process whatever the system namespace is
-            result = @test K8sClusterManagers.default_namespace() isa Union{String, Nothing}
+            result = @test K8sClusterManagers.default_namespace() isa String
 
             if !(result isa Test.Pass)
                 kubectl() do exe
@@ -51,7 +51,11 @@ using kubectl_jll: kubectl
                   """)
 
             withenv("KUBECONFIG" => config_path) do
-                @test K8sClusterManagers.default_namespace() === nothing
+                err = @capture_err begin
+                    @test_throws ProcessFailedException K8sClusterManagers.default_namespace()
+                end
+
+                @test chomp(err) == "error: current-context must exist in order to minify"
             end
         end
 
@@ -89,10 +93,11 @@ using kubectl_jll: kubectl
                   """)
 
             withenv("KUBECONFIG" => config_path) do
-                # Suppressing: "error: cannot locate context foo"
-                @suppress_err begin
-                    @test_broken K8sClusterManagers.default_namespace() === nothing
+                err = @capture_err begin
+                    @test_throws ProcessFailedException K8sClusterManagers.default_namespace()
                 end
+
+                @test chomp(err) == "error: cannot locate context foo"
             end
         end
     end
