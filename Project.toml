@@ -17,7 +17,8 @@ Kuber = "0.4.0"
 julia = "1.3"
 
 [extras]
+Swagger = "2d69052b-6a58-5cd9-a030-a48559c324ac"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["Test"]
+test = ["Swagger", "Test"]
