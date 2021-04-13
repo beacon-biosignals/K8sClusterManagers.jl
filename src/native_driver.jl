@@ -10,28 +10,29 @@ const empty_pod = """{
     }
 }"""
 
+const DEFAULT_NAMESPACE = "default"
 
 """
     current_namespace() -> String
 
-Determine the Kubernetes namespace as specified by the current context. Typically, the
-current namespace is: "default".
-
-If the namespace is not set, the current context is not set, or the current context is not
-defined then an empty string will be returned.
+Determine the Kubernetes namespace as specified by the current context. If the namespace is
+not set, the current context is not set, or the current context is not defined then the
+default namespace ("$DEFAULT_NAMESPACE") will be returned.
 """
 function current_namespace()
     # https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/
+    #
     # Equivalent to running `kubectl config view --minify --output='jsonpath={..namespace}'`
     # but improves handling of corner cases.
     kubectl() do exe
         context = read(`$exe config view --output='jsonpath={.current-context}'`, String)
-        isempty(context) && return ""
+        isempty(context) && return DEFAULT_NAMESPACE
 
         # Note: The output from `kubectl config view` reports a missing `namespace` entry,
         # `namespace: null`, and `namespace: ""` as the same.
         output = "jsonpath={.contexts[?(@.name=='$context')].context.namespace}"
-        return read(`$exe config view --output=$output`, String)
+        namespace = read(`$exe config view --output=$output`, String)
+        return isempty(namespace) ? DEFAULT_NAMESPACE : namespace
     end
 end
 

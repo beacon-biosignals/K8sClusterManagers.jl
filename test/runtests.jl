@@ -1,5 +1,6 @@
 using Distributed
 using K8sClusterManagers
+using K8sClusterManagers: DEFAULT_NAMESPACE
 using Kuber: KuberContext
 using Swagger
 using Test
@@ -51,7 +52,7 @@ using kubectl_jll: kubectl
                   """)
 
             withenv("KUBECONFIG" => config_path) do
-                @test K8sClusterManagers.current_namespace() == ""
+                @test K8sClusterManagers.current_namespace() == DEFAULT_NAMESPACE
             end
         end
 
@@ -70,7 +71,7 @@ using kubectl_jll: kubectl
                   """)
 
             withenv("KUBECONFIG" => config_path) do
-                @test K8sClusterManagers.current_namespace() == ""
+                @test K8sClusterManagers.current_namespace() == DEFAULT_NAMESPACE
             end
         end
 
@@ -89,7 +90,7 @@ using kubectl_jll: kubectl
                   """)
 
             withenv("KUBECONFIG" => config_path) do
-                @test K8sClusterManagers.current_namespace() == ""
+                @test K8sClusterManagers.current_namespace() == DEFAULT_NAMESPACE
             end
         end
     end
