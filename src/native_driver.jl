@@ -22,10 +22,10 @@ defined then an empty string will be returned.
 """
 function default_namespace()
     # https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/
-    # Equivalent to running `kubectl config view --minify ==output='jsonpath={..namespace}'`
+    # Equivalent to running `kubectl config view --minify --output='jsonpath={..namespace}'`
     # but improves handling of corner cases.
     kubectl() do exe
-        context = read(`$exe config view --output 'jsonpath={.current-context}'`, String)
+        context = read(`$exe config view --output='jsonpath={.current-context}'`, String)
         isempty(context) && return ""
 
         # Note: The output from `kubectl config view` reports a missing `namespace` entry,

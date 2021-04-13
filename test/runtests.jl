@@ -40,6 +40,7 @@ using kubectl_jll: kubectl
             end
         end
 
+        # Note: Mirrors the config returned when running in the CI environment
         @testset "no current context" begin
             config_path = tempname()
             write(config_path,
