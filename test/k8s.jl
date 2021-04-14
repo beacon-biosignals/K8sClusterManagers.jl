@@ -46,4 +46,17 @@ function manager_start(job_name, code)
     return read(p.out, String)
 end
 
-print(manager_start("demo", "using K8sClusterManagers; @show K8sClusterManagers.addprocs_pod(3, retry_seconds=30)"))
+
+# Note: If the retry value is too low then a worker may not have enough time to start before
+# the manager continues on.
+# Note: Currently K8sClusterManagers doesn't exit workers cleanly so `exit` is being used
+# as a work around.
+code = """
+using Distributed, K8sClusterManagers
+@show K8sClusterManagers.addprocs_pod(3, retry_seconds=60)
+@everywhere exit()
+"""
+
+code = join(split(code, '\n'), "; ", "")
+
+# print(manager_start("demo", code))

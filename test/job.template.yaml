@@ -44,6 +44,7 @@ spec:
     spec:
       serviceAccountName: julia-manager-serviceaccount
       restartPolicy: Never
+      backoffLimit: 1
       containers:
       - name: manager
         image: {{ :image }}
