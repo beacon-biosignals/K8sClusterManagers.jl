@@ -1,12 +1,15 @@
 using Distributed
 using K8sClusterManagers
-using K8sClusterManagers: DEFAULT_NAMESPACE
+using K8sClusterManagers: DEFAULT_NAMESPACE, NAMESPACE_FILE
 using Kuber: KuberContext
 using LibGit2: LibGit2
+using Mocking: Mocking, @patch, apply
 using Mustache: Mustache, render
 using Swagger: Swagger
 using Test
 using kubectl_jll: kubectl
+
+Mocking.activate()
 
 
 @testset "K8sClusterManagers" begin
@@ -93,6 +96,15 @@ using kubectl_jll: kubectl
 
             withenv("KUBECONFIG" => config_path) do
                 @test K8sClusterManagers.current_namespace() == DEFAULT_NAMESPACE
+            end
+        end
+
+        @testset "namespace file" begin
+            patches = [@patch isfile(f) = f == NAMESPACE_FILE
+                       @patch read(f, ::Type{String}) = "pod-namespace"]
+
+            apply(patches) do
+                @test K8sClusterManagers.current_namespace() == "pod-namespace"
             end
         end
     end

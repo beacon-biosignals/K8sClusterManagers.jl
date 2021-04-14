@@ -11,17 +11,23 @@ const empty_pod = """{
 }"""
 
 const DEFAULT_NAMESPACE = "default"
+const NAMESPACE_FILE = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
 
 """
     current_namespace() -> String
 
-Determine the Kubernetes namespace as specified by the current context. If the namespace is
-not set, the current context is not set, or the current context is not defined then the
-default namespace ("$DEFAULT_NAMESPACE") will be returned.
+Determine the Kubernetes namespace usually specified by the current context. When running
+inside of a Kubernetes pod the namespace of the pod will be returned.
+
+If the namespace is not set, the current context is not set, or the current context is not
+defined then the default namespace ("$DEFAULT_NAMESPACE") will be returned.
 """
 function current_namespace()
     # https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/
-    #
+
+    # When running inside of a pod use the current pod's namespace
+    @mock(isfile(NAMESPACE_FILE)) && return @mock(read(NAMESPACE_FILE, String))
+
     # Equivalent to running `kubectl config view --minify --output='jsonpath={..namespace}'`
     # but improves handling of corner cases.
     kubectl() do exe

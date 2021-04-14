@@ -5,6 +5,7 @@ using Distributed
 using JSON
 using kubectl_jll
 using Kuber
+using Mocking: Mocking, @mock
 
 import Distributed: launch, manage, kill
 
