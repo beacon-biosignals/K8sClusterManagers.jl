@@ -40,11 +40,12 @@ metadata:
 spec:
   # Clean up finished jobs
   ttlSecondsAfterFinished: 10
+  # Stop the job from creating a new pod when the container exits in error
+  backoffLimit: 0
   template:
     spec:
       serviceAccountName: julia-manager-serviceaccount
       restartPolicy: Never
-      backoffLimit: 1
       containers:
       - name: manager
         image: {{ :image }}
