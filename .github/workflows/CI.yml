@@ -26,8 +26,11 @@ jobs:
         with:
           minikube version: v1.17.1
           kubernetes version: v1.20.5
-      - name: Demo
-        run: kubectl get nodes
+      # https://github.com/marketplace/actions/docker-setup-buildx
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+      - name: Build Test image
+        run: docker build -t k8s-cluster .
       - uses: julia-actions/setup-julia@v1
         with:
           version: ${{ matrix.version }}

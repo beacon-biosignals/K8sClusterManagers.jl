@@ -26,6 +26,5 @@ Manifest.toml
 .DS_Store
 tmpdir/*
 
-Dockerfile*
 sysimage.jl
 driver*.yaml*
