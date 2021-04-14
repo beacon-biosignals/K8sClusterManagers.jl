@@ -1,6 +1,7 @@
+using LibGit2
 using Mustache
 
-const PKG_DIR = abspath(@__DIR__, "")
+const PKG_DIR = abspath(@__DIR__, "..")
 const GIT_DIR = joinpath(PKG_DIR, ".git")
 const GIT_REV = try
     readchomp(`git --git-dir $GIT_DIR rev-parse --short HEAD`)
