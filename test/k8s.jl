@@ -45,3 +45,5 @@ function manager_start(job_name, code)
     close(p.in)
     return read(p.out, String)
 end
+
+print(manager_start("demo", "using K8sClusterManagers; @show K8sClusterManagers.addprocs_pod(3, retry_seconds=30)"))

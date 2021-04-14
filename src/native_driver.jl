@@ -70,6 +70,7 @@ function default_pod(ctx, port, cmd::Cmd, driver_name::String; image=nothing, me
         end
         image = last(self.spec.containers).image
     end
+    # TODO: "imagePullPolicy" should typically be "Always" but that doesn't work with local testing
     push!(ko.spec.containers, """{
         "name": "$(driver_name)-worker-$port",
         "image": "$image",
@@ -84,7 +85,7 @@ function default_pod(ctx, port, cmd::Cmd, driver_name::String; image=nothing, me
                 "cpu": "$cpu"
             }
         },
-        "imagePullPolicy": "Always"
+        "imagePullPolicy": "Never"
     }""")
     if !isnothing(serviceAccountName)
         ko.spec.serviceAccountName = serviceAccountName
