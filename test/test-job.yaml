@@ -45,7 +45,8 @@ spec:
       restartPolicy: Never
       containers:
       - name: manager
-        image: julia
+        image: k8s-cluster-managers
+        imagePullPolicy: Never  # Avoid attempting to pull local images
         resources:
           limits:
             cpu: 1

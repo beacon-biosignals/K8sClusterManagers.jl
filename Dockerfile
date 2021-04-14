@@ -8,7 +8,7 @@ ENV PKG_NAME "K8sClusterManagers"
 # requirements. By only installing the minimum required files we should be able to make
 # better use of Docker layer caching. Only when the Project.toml file or the Manifest.toml
 # have changed will we be forced to redo these steps.
-ENV PKG_PATH $HOME/$PKG_NAME
+ENV PKG_PATH /root/.julia/dev/$PKG_NAME
 COPY *Project.toml *Manifest.toml $PKG_PATH/
 RUN mkdir -p $PKG_PATH/src && touch $PKG_PATH/src/$PKG_NAME.jl
 
