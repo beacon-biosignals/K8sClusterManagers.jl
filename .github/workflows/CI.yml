@@ -21,6 +21,13 @@ jobs:
       - uses: actions/checkout@v2
         with:
           fetch-depth: 0
+      - name: Setup minikube
+        uses: manusa/actions-setup-minikube@v2.3.1
+        with:
+          minikube version: v1.17.1
+          kubernetes version: v1.20.5
+      - name: Demo
+        run: kubectl get nodes
       - uses: julia-actions/setup-julia@v1
         with:
           version: ${{ matrix.version }}
