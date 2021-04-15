@@ -14,14 +14,9 @@ jobs:
         version:
           - '1'
         os:
-          - macos-latest
+          - ubuntu-latest
         arch:
           - x64
-    env:
-      # Default minikube settings block us from launching 2 pods
-      # https://minikube.sigs.k8s.io/docs/handbook/config/#environment-variables
-      MINIKUBE_CPUS: 3
-      # MINIKUBE_MEMORY: 16384
     steps:
       - uses: actions/checkout@v2
         with:
@@ -31,18 +26,19 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v1
 
-      # https://minikube.sigs.k8s.io/docs/handbook/config/#environment-variables
-      # - name: Configure minikube
-      #   run: |
-      #     echo "MINIKUBE_CPUS=4" >> GITHUB_ENV
-      #     echo "MINIKUBE_MEMORY=16384" >> GITHUB_ENV
-
       - name: Set up minikube
         uses: manusa/actions-setup-minikube@v2.3.1
         with:
           minikube version: v1.19.0
           kubernetes version: v1.20.5
           driver: docker
+      # Since the GitHub Linux runners only have 2 CPUs we'll be quite limited in the
+      # number of pods we can launch. By adding an additional node we'll be oversubscribing
+      # but it should avoid pods stuck being stuck as "Pending".
+      - name: Set up additional minikube node(s)
+        run: |
+          minikube node add
+          minikube node list
       - name: Set up minikube docker-env
         run: minikube docker-env | sed -n 's/^export \(.*\)="\(.*\)"/\1=\2/p' >> $GITHUB_ENV
       - name: Check GITHUB_ENV
