@@ -36,7 +36,7 @@ subjects:
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: {{ :job_name }}
+  name: {{{:job_name}}}
 spec:
   # Clean up finished jobs
   ttlSecondsAfterFinished: 10
@@ -49,12 +49,12 @@ spec:
       restartPolicy: Never
       containers:
       - name: manager
-        image: {{ :image }}
+        image: {{{:image}}}
         imagePullPolicy: Never  # Avoid attempting to pull local images
         resources:
           limits:
             cpu: 1
             memory: 4Gi
-        command: [{{#:command}}"{{.}}"{{^.[end]}}, {{/.[end]}}{{/:command}}]
+        command: [{{#:command}}"{{{.}}}"{{^.[end]}}, {{/.[end]}}{{/:command}}]
         stdin: true
         tty: true

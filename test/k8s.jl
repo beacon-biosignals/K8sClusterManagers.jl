@@ -14,7 +14,7 @@ catch
 end
 
 const TEST_IMAGE = "k8s-cluster-managers:$GIT_REV"
-const JOB_TEMPLATE = Mustache.load("job.template.yaml")
+const JOB_TEMPLATE = Mustache.load(joinpath(@__DIR__, "job.template.yaml"))
 
 function parse_env(str::AbstractString)
     env = Pair{String,String}[]
@@ -48,6 +48,16 @@ function manager_start(job_name, code)
 end
 
 
+function pod_logs(pod_name)
+    if success(`kubectl get pod/$pod_name`)
+        read(`kubectl logs $pod_name`, String)
+    else
+        nothing
+    end
+end
+
+escape_quotes(str::AbstractString) = replace(str, r"\"" => "\\\"")
+
 let job_name = "test-worker-success"
     @testset "$job_name" begin
         code = """
@@ -61,9 +71,14 @@ let job_name = "test-worker-success"
             end
             """
 
-        command = ["julia", "-e", code]
+        # TODO: As Mustache.jl is primarily meant for HTML templating it isn't smart enough
+        # to escape double-quotes found inside `code`. We should investigate better
+        # approaches to this templating problem
+        command = ["julia", "-e", replace(escape_quotes(code), '\n' => "\\n")]
+        @show command
         config = render(JOB_TEMPLATE; job_name, image=TEST_IMAGE, command)
-        open(`kubectl apply -f -`, "w", stdout) do p
+        @info config
+        open(`kubectl apply --force -f -`, "w", stdout) do p
             write(p.in, config)
         end
 
@@ -73,10 +88,14 @@ let job_name = "test-worker-success"
             sleep(1)
         end
 
-        manager_pod = "pod/$job_name"
-        worker_pod = "pod/$job_name-worker-9001"
+        # TODO: Query could return more than one result
+        manager_pod = read(`kubectl get pods -l job-name=$job_name -o 'jsonpath={..metadata.name}'`, String)
+        worker_pod = "$manager_pod-worker-9001"
+        @show manager_pod
 
-        @info "Logs for manager:\n" * read(`kubectl logs $manager_pod`, String)
-        @info "Logs for worker:\n" * read(`kubectl logs $worker_pod`, String)
+        @info "Describe manager:\n" * read(`kubectl describe pod/$manager_pod`, String)
+
+        @info "Logs for manager:\n" * string(pod_logs(manager_pod))
+        @info "Logs for worker:\n" * string(pod_logs(worker_pod))
     end
 end
