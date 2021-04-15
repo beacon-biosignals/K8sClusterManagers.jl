@@ -31,6 +31,8 @@ jobs:
           minikube version: v1.17.1
           kubernetes version: v1.20.5
           driver: docker
+      - name: Setup minikube docker-env
+        run: minikube docker-env >> $GITHUB_ENV
       - name: Check GITHUB_ENV
         run: |
           cat $GITHUB_ENV
