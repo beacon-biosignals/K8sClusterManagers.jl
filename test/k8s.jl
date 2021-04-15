@@ -1,5 +1,6 @@
 using LibGit2
 using Mustache
+using Test
 
 const PKG_DIR = abspath(@__DIR__, "..")
 const GIT_DIR = joinpath(PKG_DIR, ".git")
@@ -48,7 +49,7 @@ end
 
 
 let job_name = "test-worker-success"
-    @testset job_name begin
+    @testset "$job_name" begin
         code = """
             using Distributed, K8sClusterManagers
             K8sClusterManagers.addprocs_pod(1, retry_seconds=60)
