@@ -56,7 +56,12 @@ function pod_logs(pod_name)
     end
 end
 
-escape_quotes(str::AbstractString) = replace(str, r"\"" => "\\\"")
+# Use the double-quoted flow scalar style to allow us to have a YAML string which includes
+# newlines without being aware of YAML indentation (block styles)
+#
+# The double-quoted style allows us to use escape sequences via `\` but requires us to
+# escape uses of `\` and `"`. It so happens that `escape_string` follows the same rules
+escape_yaml_string(str::AbstractString) = escape_string(str)
 
 let job_name = "test-worker-success"
     @testset "$job_name" begin
@@ -71,11 +76,7 @@ let job_name = "test-worker-success"
             end
             """
 
-        # TODO: As Mustache.jl is primarily meant for HTML templating it isn't smart enough
-        # to escape double-quotes found inside `code`. We should investigate better
-        # approaches to this templating problem
-        command = ["julia", "-e", replace(escape_quotes(code), '\n' => "\\n")]
-        @show command
+        command = ["julia", "-e", escape_yaml_string(code)]
         config = render(JOB_TEMPLATE; job_name, image=TEST_IMAGE, command)
         @info config
         open(`kubectl apply --force -f -`, "w", stdout) do p
