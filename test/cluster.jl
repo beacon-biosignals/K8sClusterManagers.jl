@@ -73,17 +73,25 @@ let job_name = "test-worker-success"
         # Wait for job to reach status: "Complete" or "Failed"
         job_status_cmd = `kubectl get job/$job_name -o 'jsonpath={..status..type}'`
         manager_pod = nothing
+        worker_pod = nothing
 
         while isempty(read(job_status_cmd, String))
             if manager_pod === nothing
                 # TODO: Query could return more than one result
                 manager_pod = read(`kubectl get pods -l job-name=$job_name -o 'jsonpath={..metadata.name}'`, String)
+                worker_pod = "$manager_pod-worker-9001"
             elseif pod_phase(manager_pod) in ("Failed", "Unknown")
                 break
             end
 
             @info read(ignorestatus(`kubectl describe job/$job_name`), String)
             @info read(ignorestatus(`kubectl get pods -L job-name=$job_name`), String)
+            if manager_pod !== nothing && pod_exists(manager_pod)
+                @info "Describe manager pod ($manager_pod):\n" * read(ignorestatus(`kubectl describe pod/$manager_pod`), String)
+            end
+            if worker_pod !== nothing && pod_exists(worker_pod)
+                @info "Describe worker pod ($worker_pod):\n" * read(ignorestatus(`kubectl describe pod/$worker_pod`), String)
+            end
 
             sleep(10)
         end
