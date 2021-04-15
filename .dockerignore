@@ -1,0 +1,6 @@
+.git*
+.dockerignore
+Dockerfile
+
+# Allows for tests to be modified without having to rebuild the image
+/test
