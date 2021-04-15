@@ -37,17 +37,13 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: {{ :job_name }}
-  labels:
-    job: {{ :job_name }}
 spec:
   # Clean up finished jobs
   ttlSecondsAfterFinished: 10
   # Stop the job from creating a new pod when the container exits in error
   backoffLimit: 0
   template:
-    metadata:
-      labels:
-        job: {{ :job_name }}
+    # Note: Pods are automatically assigned the label `job-name` using the job's name
     spec:
       serviceAccountName: julia-manager-serviceaccount
       restartPolicy: Never
