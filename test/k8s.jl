@@ -47,16 +47,35 @@ function manager_start(job_name, code)
 end
 
 
-# Note: If the retry value is too low then a worker may not have enough time to start before
-# the manager continues on.
-# Note: Currently K8sClusterManagers doesn't exit workers cleanly so `exit` is being used
-# as a work around.
-code = """
-using Distributed, K8sClusterManagers
-@show K8sClusterManagers.addprocs_pod(3, retry_seconds=60)
-@everywhere exit()
-"""
+let job_name = "test-worker-success"
+    @testset job_name begin
+        code = """
+            using Distributed, K8sClusterManagers
+            K8sClusterManagers.addprocs_pod(1, retry_seconds=60)
 
-code = join(split(code, '\n'), "; ", "")
+            println("Num Processes: ", nprocs())
+            for i in workers()
+                # TODO: HOSTNAME is the name of the pod. Maybe should return other info
+                println("Worker pod \$i: ", remotecall_fetch(() -> ENV["HOSTNAME"], i))
+            end
+            """
 
-# print(manager_start("demo", code))
+        command = ["julia", "-e", code]
+        config = render(JOB_TEMPLATE; job_name, image=TEST_IMAGE, command)
+        open(`kubectl apply -f -`, "w", stdout) do p
+            write(p.in, config)
+        end
+
+        # Wait for job to reach status: "Complete" or "Failed"
+        job_status_cmd = `kubectl get job/$job_name -o 'jsonpath={..status..type}'`
+        while isempty(read(job_status_cmd, String))
+            sleep(1)
+        end
+
+        manager_pod = "pod/$job_name"
+        worker_pod = "pod/$job_name-worker-9001"
+
+        @info "Logs for manager:\n" * read(`kubectl logs $manager_pod`, String)
+        @info "Logs for worker:\n" * read(`kubectl logs $worker_pod`, String)
+    end
+end
