@@ -31,9 +31,13 @@ jobs:
           minikube version: v1.17.1
           kubernetes version: v1.20.5
       - name: Check GITHUB_ENV
-        run: echo $GITHUB_ENV
-      - name: Setup minikube docker environment
-        run: minikube docker-env >> $GITHUB_ENV
+        run: |
+          cat $GITHUB_ENV
+          docker ps -a
+          docker images
+
+      # - name: Setup minikube docker environment
+      #   run: minikube docker-env >> $GITHUB_ENV
 
       - uses: julia-actions/setup-julia@v1
         with:
