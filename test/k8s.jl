@@ -35,26 +35,10 @@ withenv(parse_env(read(`minikube docker-env`, String))...) do
     run(`docker build -t $TEST_IMAGE $PKG_DIR`)
 end
 
-function manager_start(job_name, code)
-    job_yaml = render(JOB_TEMPLATE,
-                      job_name=job_name,
-                      image=TEST_IMAGE,
-                      command=["julia", "-e", code])
 
-    p = open(`kubectl apply -f -`, "w+")
-    write(p.in, job_yaml)
-    close(p.in)
-    return read(p.out, String)
-end
-
-
-function pod_logs(pod_name)
-    if success(`kubectl get pod/$pod_name`)
-        read(`kubectl logs $pod_name`, String)
-    else
-        nothing
-    end
-end
+pod_exists(pod_name) = success(`kubectl get pod/$pod_name`)
+pod_logs(pod_name) = read(`kubectl logs $pod_name`, String)
+pod_phase(pod_name) = read(`kubectl get pod/$pod_name -o 'jsonpath={.status.phase}'`, String)
 
 # Use the double-quoted flow scalar style to allow us to have a YAML string which includes
 # newlines without being aware of YAML indentation (block styles)
@@ -78,7 +62,6 @@ let job_name = "test-worker-success"
 
         command = ["julia", "-e", escape_yaml_string(code)]
         config = render(JOB_TEMPLATE; job_name, image=TEST_IMAGE, command)
-        @info config
         open(`kubectl apply --force -f -`, "w", stdout) do p
             write(p.in, config)
         end
@@ -92,11 +75,25 @@ let job_name = "test-worker-success"
         # TODO: Query could return more than one result
         manager_pod = read(`kubectl get pods -l job-name=$job_name -o 'jsonpath={..metadata.name}'`, String)
         worker_pod = "$manager_pod-worker-9001"
-        @show manager_pod
 
-        @info "Describe manager:\n" * read(`kubectl describe pod/$manager_pod`, String)
+        # @info "Describe manager:\n" * read(`kubectl describe pod/$manager_pod`, String)
 
-        @info "Logs for manager:\n" * string(pod_logs(manager_pod))
-        @info "Logs for worker:\n" * string(pod_logs(worker_pod))
+        if pod_exists(manager_pod)
+            @info "Logs for manager ($manager_pod):\n" * pod_logs(manager_pod)
+        else
+            @info "No logs for manager ($manager_pod)"
+        end
+
+        if pod_exists(worker_pod)
+            @info "Logs for worker ($worker_pod):\n" * pod_logs(worker_pod)
+        else
+            @info "No logs for worker ($worker_pod)"
+        end
+
+        @test pod_exists(manager_pod)
+        @test pod_exists(worker_pod)
+
+        @test pod_phase(manager_pod) == "Succeeded"
+        @test_broken pod_phase(worker_pod) == "Succeeded"
     end
 end
