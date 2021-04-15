@@ -10,7 +10,7 @@ ENV PKG_NAME "K8sClusterManagers"
 # have changed will we be forced to redo these steps.
 ENV PKG_PATH /root/.julia/dev/$PKG_NAME
 COPY *Project.toml *Manifest.toml $PKG_PATH/
-RUN mkdir -p $PKG_PATH/src && touch $PKG_PATH/src/$PKG_NAME.jl
+RUN mkdir -p $PKG_PATH/src && echo "module $PKG_NAME end" > $PKG_PATH/src/$PKG_NAME.jl
 
 # Install and build the package dependencies.
 RUN julia -e ' \
