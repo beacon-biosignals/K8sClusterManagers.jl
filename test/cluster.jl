@@ -40,6 +40,8 @@ run(`docker build -t $TEST_IMAGE $PKG_DIR`)
 
 pod_exists(pod_name) = success(`kubectl get pod/$pod_name`)
 pod_logs(pod_name) = read(`kubectl logs $pod_name`, String)
+
+# https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-phase
 pod_phase(pod_name) = read(`kubectl get pod/$pod_name -o 'jsonpath={.status.phase}'`, String)
 
 # Use the double-quoted flow scalar style to allow us to have a YAML string which includes
