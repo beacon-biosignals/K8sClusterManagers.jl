@@ -71,7 +71,9 @@ let job_name = "test-worker-success"
         # Wait for job to reach status: "Complete" or "Failed"
         job_status_cmd = `kubectl get job/$job_name -o 'jsonpath={..status..type}'`
         while isempty(read(job_status_cmd, String))
-            sleep(1)
+            @info read(ignorestatus(`kubectl describe job/$job_name`), String)
+            @info read(ignorestatus(`kubectl get pods -L job-name=$job_name`), String)
+            sleep(10)
         end
 
         # TODO: Query could return more than one result
