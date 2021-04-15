@@ -17,6 +17,11 @@ jobs:
           - ubuntu-latest
         arch:
           - x64
+    env:
+      # Default minikube settings block us from launching 2 pods
+      # https://minikube.sigs.k8s.io/docs/handbook/config/#environment-variables
+      MINIKUBE_CPUS: 4
+      MINIKUBE_MEMORY: 16384
     steps:
       - uses: actions/checkout@v2
         with:
@@ -25,6 +30,13 @@ jobs:
       # https://github.com/marketplace/actions/docker-setup-buildx
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v1
+
+      # https://minikube.sigs.k8s.io/docs/handbook/config/#environment-variables
+      # - name: Configure minikube
+      #   run: |
+      #     echo "MINIKUBE_CPUS=4" >> GITHUB_ENV
+      #     echo "MINIKUBE_MEMORY=16384" >> GITHUB_ENV
+
       - name: Set up minikube
         uses: manusa/actions-setup-minikube@v2.3.1
         with:
