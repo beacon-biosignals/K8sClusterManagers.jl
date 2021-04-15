@@ -30,8 +30,10 @@ jobs:
         with:
           minikube version: v1.17.1
           kubernetes version: v1.20.5
-      - name: Build Test image
-        run: docker build -t k8s-cluster .
+      - name: Check GITHUB_ENV
+        run: echo $GITHUB_ENV
+      - name: Setup minikube docker environment
+        run: minikube docker-env >> $GITHUB_ENV
 
       - uses: julia-actions/setup-julia@v1
         with:

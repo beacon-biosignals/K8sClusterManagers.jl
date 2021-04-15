@@ -31,9 +31,11 @@ end
 
 # TODO: Look into alternative way of accessing the image inside of minikube that is agnostic
 # of the local Kubernetes distro being used: https://minikube.sigs.k8s.io/docs/handbook/pushing/
-withenv(parse_env(read(`minikube docker-env`, String))...) do
-    run(`docker build -t $TEST_IMAGE $PKG_DIR`)
-end
+# withenv(parse_env(read(`minikube docker-env`, String))...) do
+#     run(`docker build -t $TEST_IMAGE $PKG_DIR`)
+# end
+
+run(`docker build -t $TEST_IMAGE $PKG_DIR`)
 
 
 pod_exists(pod_name) = success(`kubectl get pod/$pod_name`)

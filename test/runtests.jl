@@ -121,4 +121,9 @@ using kubectl_jll: kubectl
             end
         end
     end
+
+    # Tests that interact with a real Kubernetes cluster
+    @testset "Kubernetes Cluster Tests" begin
+        include("cluster.jl")
+    end
 end
