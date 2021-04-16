@@ -25,6 +25,12 @@ jobs:
       # https://github.com/marketplace/actions/docker-setup-buildx
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v1
+      - name: Build Docker image
+        run: |
+          GIT_REV=$(git rev-parse --short HEAD)
+          IMAGE=k8s-cluster-managers:$GIT_REV
+          echo "K8S_CLUSTER_MANAGERS_IMAGE=$IMAGE" >> $GITHUB_ENV
+          docker build -t $IMAGE .
 
       # Factors influencing the setup of the "local" Kubernetes cluster:
       # - Limited resources on GitHub runners only allow running a 1 pod at a time with
@@ -50,16 +56,10 @@ jobs:
       # take an alternate approach. The recommended way is to use the registry addon but
       # requires more setup than the current approach of directly transferring the image to
       # each of the nodes.
-      - name: Build Docker image
-        run: |
-          GIT_REV=$(git rev-parse --short HEAD)
-          IMAGE=k8s-cluster-managers:$GIT_REV
-          echo "K8S_CLUSTER_MANAGERS_IMAGE=$IMAGE" >> $GITHUB_ENV
-          docker build -t $IMAGE .
       - name: Push image to node(s)
         run: |
           for node in $(minikube node list | cut -f1); do
-              echo "Transfering image to $node..."
+              echo "Transfering image to node $node..."
               chmod 600 $MINIKUBE_HOME/.minikube/machines/$node/id_rsa  # Default permissions too open
               docker save $K8S_CLUSTER_MANAGERS_IMAGE | minikube ssh --node $node --native-ssh=false -- docker load
           done
