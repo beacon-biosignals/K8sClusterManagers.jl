@@ -13,29 +13,13 @@ catch
     end
 end
 
-const TEST_IMAGE = "k8s-cluster-managers:$GIT_REV"
 const JOB_TEMPLATE = Mustache.load(joinpath(@__DIR__, "job.template.yaml"))
+const TEST_IMAGE = get(ENV, "K8S_CLUSTER_MANAGERS_TEST_IMAGE", "k8s-cluster-managers:$GIT_REV")
 
-function parse_env(str::AbstractString)
-    env = Pair{String,String}[]
-    for line in split(str, '\n')
-        if startswith(line, "export")
-            name, value = split(replace(line, "export " => ""), '=')
-            value = replace(value, r"^([\"'])(.*)\1$" => s"\2")
-            push!(env, name => value)
-        end
-    end
-
-    return env
+# When the environmental variable is set we expect the Docker image to be pre-built
+if !haskey(ENV, "K8S_CLUSTER_MANAGERS_TEST_IMAGE")
+    run(`docker build -t $TEST_IMAGE $PKG_DIR`)
 end
-
-# TODO: Look into alternative way of accessing the image inside of minikube that is agnostic
-# of the local Kubernetes distro being used: https://minikube.sigs.k8s.io/docs/handbook/pushing/
-# withenv(parse_env(read(`minikube docker-env`, String))...) do
-#     run(`docker build -t $TEST_IMAGE $PKG_DIR`)
-# end
-
-run(`docker build -t $TEST_IMAGE $PKG_DIR`)
 
 
 pod_exists(pod_name) = success(`kubectl get pod/$pod_name`)
