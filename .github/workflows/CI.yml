@@ -60,6 +60,7 @@ jobs:
         run: |
           for node in $(minikube node list | cut -f1); do
               echo "Transfering image to $node..."
+              chmod 600 $HOME/.minikube/$node/id_rsa  # Default permissions too open
               docker save $K8S_CLUSTER_MANAGERS_IMAGE | minikube ssh --node $node --native-ssh=false -- docker load
           done
 
