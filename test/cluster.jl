@@ -46,7 +46,7 @@ let job_name = "test-worker-success"
     @testset "$job_name" begin
         code = """
             using Distributed, K8sClusterManagers
-            K8sClusterManagers.addprocs_pod(1, retry_seconds=60)
+            K8sClusterManagers.addprocs_pod(1, retry_seconds=60, memory="2Gi")
 
             println("Num Processes: ", nprocs())
             for i in workers()

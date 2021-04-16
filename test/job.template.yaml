@@ -54,7 +54,7 @@ spec:
         resources:
           limits:
             cpu: 1
-            memory: 4Gi
+            memory: 2Gi
         command: [{{#:command}}"{{{.}}}"{{^.[end]}}, {{/.[end]}}{{/:command}}]
         stdin: true
         tty: true

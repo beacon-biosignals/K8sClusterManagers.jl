@@ -17,6 +17,11 @@ export launch, manage, kill
 
 const kubectl_proxy_process = Ref{Base.Process}()
 
+# Apple Silicon/ARM64 work around
+if !kubectl_jll.is_available()
+    kubectl(f) = f(`kubectl`)
+end
+
 function restart_kubectl_proxy()
     port = get(ENV, "KUBECTL_PROXY_PORT", 8001)
     if isassigned(kubectl_proxy_process)
@@ -28,10 +33,10 @@ function restart_kubectl_proxy()
 end
 
 function __init__()
-    if !kubectl_jll.is_available()
-        error("kubectl_jll does not support the current platform. See: ",
-              "https://github.com/JuliaBinaryWrappers/kubectl_jll.jl#platforms")
-    end
+    # if !kubectl_jll.is_available()
+    #     error("kubectl_jll does not support the current platform. See: ",
+    #           "https://github.com/JuliaBinaryWrappers/kubectl_jll.jl#platforms")
+    # end
 
     restart_kubectl_proxy()
 end
