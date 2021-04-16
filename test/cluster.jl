@@ -13,8 +13,23 @@ catch
     end
 end
 
+# Note: `kubectl apply` will only spawn a new job if there is a change to the job
+# specification in the rendered manifest. If we simply used `GIT_REV` for as the image tag
+# than any dirty changes may be ignored.
+#
+# Alternative solutions:
+# - Use `imagePullPolicy: Always` (doesn't work with local images)
+# - Introduce a unique label
+# - Delete the old job first
+# - Possibly switching to a pod for the manager instead of a job
+const TAG = if !isempty(read(`git --git-dir $GIT_DIR status --short`))
+    "$GIT_REV-dirty-$(getpid())"
+else
+    GIT_REV  # Re-runs here may just use the old job
+end
+
 const JOB_TEMPLATE = Mustache.load(joinpath(@__DIR__, "job.template.yaml"))
-const TEST_IMAGE = get(ENV, "K8S_CLUSTER_MANAGERS_TEST_IMAGE", "k8s-cluster-managers:$GIT_REV")
+const TEST_IMAGE = get(ENV, "K8S_CLUSTER_MANAGERS_TEST_IMAGE", "k8s-cluster-managers:$TAG")
 
 # As a convenience we'll automatically build the Docker image when a user uses `Pkg.test()`.
 # If the environmental variable is set we expect the Docker image has already been built.
@@ -28,10 +43,14 @@ pod_logs(pod_name) = read(`kubectl logs $pod_name`, String)
 # https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-phase
 pod_phase(pod_name) = read(`kubectl get pod/$pod_name -o 'jsonpath={.status.phase}'`, String)
 
-function job_pods(job_name)
+function job_pods(job_name, labels::Pair...)
+    selectors = Dict{String,String}(labels)
+    selectors["job-name"] = job_name
+    selector = join(map(p -> join(p, '='), collect(pairs(selectors))), ',')
+
     # Adapted from: https://kubernetes.io/docs/concepts/workloads/controllers/job/#running-an-example-job
     jsonpath = "{range .items[*]}{.metadata.name}{\"\\n\"}{end}"
-    output = read(`kubectl get pods -l job-name=$job_name -o=jsonpath=$jsonpath`, String)
+    output = read(`kubectl get pods -l $selector -o=jsonpath=$jsonpath`, String)
     return split(output, '\n')
 end
 
