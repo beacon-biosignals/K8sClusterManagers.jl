@@ -26,21 +26,42 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v1
 
+      # Factors influencing the setup of the "local" Kubernetes cluster:
+      # - Limited resources on GitHub runners only allow running a 1 pod at a time with
+      #   the default minikube install (additional jobs would be stuck as "Pending")
+      # - minikube restricts max CPUs per node to the number of CPUs on the host
+      # - minikube "none" driver only supports a single node (due to port conflicts)
+      # - minikube "docker" driver requires local-only images to present on the node where
+      #   it is used (all nodes in practice)
       - name: Set up minikube
         uses: manusa/actions-setup-minikube@v2.3.1
         with:
           minikube version: v1.19.0
           kubernetes version: v1.20.5
-          driver: none
-      # Since the GitHub Linux runners only have 2 CPUs we'll be quite limited in the
-      # number of pods we can launch. By adding an additional node we'll be oversubscribing
-      # but it should avoid pods stuck being stuck as "Pending".
+          driver: docker
       - name: Set up additional minikube node(s)
         run: |
           minikube node add
           minikube node list
-      # - name: Set up minikube docker-env
-      #   run: minikube docker-env | sed -n 's/^export \(.*\)="\(.*\)"/\1=\2/p' >> $GITHUB_ENV
+
+      # To use a Docker image in the cluster it must first be made available to the cluster
+      # nodes. In single node clusters the easy way to do this with the Docker driver would
+      # be to use `minikube docker-env` but since we're using multi-node cluster we have to
+      # take an alternate approach. The recommended way is to use the registry addon but
+      # requires more setup than the current approach of directly transferring the image to
+      # each of the nodes.
+      - name: Build Docker image
+        run: |
+          GIT_REV=$(git rev-parse --short HEAD)
+          IMAGE=k8s-cluster-managers:$GIT_REV
+          echo "K8S_CLUSTER_MANAGERS_IMAGE=$IMAGE" >> $GITHUB_ENV
+          docker build -t $IMAGE .
+      - name: Push image to node(s)
+        run: |
+          for node in $(minikube node list | cut -f1); do
+              echo "Transfering image to $node..."
+              docker save $K8S_CLUSTER_MANAGERS_IMAGE | minikube ssh --node $node --native-ssh=false -- docker load
+          done
 
       - uses: julia-actions/setup-julia@v1
         with:
