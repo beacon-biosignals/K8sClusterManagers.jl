@@ -123,7 +123,7 @@ using kubectl_jll: kubectl
     end
 
     # Tests that interact with a real, usually local, Kubernetes cluster
-    if get(ENV, "K8S_CLUSTER_TESTS", "true")
+    if parse(Bool, get(ENV, "K8S_CLUSTER_TESTS", "true"))
         @testset "Kubernetes Cluster Tests" begin
             include("cluster.jl")
         end
