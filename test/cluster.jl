@@ -16,17 +16,24 @@ end
 const JOB_TEMPLATE = Mustache.load(joinpath(@__DIR__, "job.template.yaml"))
 const TEST_IMAGE = get(ENV, "K8S_CLUSTER_MANAGERS_TEST_IMAGE", "k8s-cluster-managers:$GIT_REV")
 
-# When the environmental variable is set we expect the Docker image to be pre-built
+# As a convenience we'll automatically build the Docker image when a user uses `Pkg.test()`.
+# If the environmental variable is set we expect the Docker image has already been built.
 if !haskey(ENV, "K8S_CLUSTER_MANAGERS_TEST_IMAGE")
     run(`docker build -t $TEST_IMAGE $PKG_DIR`)
 end
-
 
 pod_exists(pod_name) = success(`kubectl get pod/$pod_name`)
 pod_logs(pod_name) = read(`kubectl logs $pod_name`, String)
 
 # https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-phase
 pod_phase(pod_name) = read(`kubectl get pod/$pod_name -o 'jsonpath={.status.phase}'`, String)
+
+function job_pods(job_name)
+    # Adapted from: https://kubernetes.io/docs/concepts/workloads/controllers/job/#running-an-example-job
+    jsonpath = "{range .items[*]}{.metadata.name}{\"\\n\"}{end}"
+    output = read(`kubectl get pods -l job-name=$job_name -o=jsonpath=$jsonpath`, String)
+    return split(output, '\n')
+end
 
 # Use the double-quoted flow scalar style to allow us to have a YAML string which includes
 # newlines without being aware of YAML indentation (block styles)
@@ -59,10 +66,12 @@ let job_name = "test-worker-success"
         manager_pod = nothing
         worker_pod = nothing
 
+        # TODO: There are a few scenarios in which this wait loop could just hang:
+        # - Pod stuck as pending due to not enough cluster resources
+        # - Failure to pull Docker image will cause job not to complete
         while isempty(read(job_status_cmd, String))
             if manager_pod === nothing
-                # TODO: Query could return more than one result
-                manager_pod = read(`kubectl get pods -l job-name=$job_name -o 'jsonpath={..metadata.name}'`, String)
+                manager_pod = first(job_pods(job_name))
                 worker_pod = "$manager_pod-worker-9001"
             elseif pod_phase(manager_pod) in ("Failed", "Unknown")
                 break
@@ -72,16 +81,17 @@ let job_name = "test-worker-success"
             @info read(ignorestatus(`kubectl get pods -L job-name=$job_name`), String)
             if manager_pod !== nothing && pod_exists(manager_pod)
                 @info "Describe manager pod ($manager_pod):\n" * read(ignorestatus(`kubectl describe pod/$manager_pod`), String)
+                @info pod_phase(manager_pod)
             end
             if worker_pod !== nothing && pod_exists(worker_pod)
                 @info "Describe worker pod ($worker_pod):\n" * read(ignorestatus(`kubectl describe pod/$worker_pod`), String)
+                @info pod_phase(worker_pod)
             end
 
-            sleep(10)
+            sleep(20)
         end
 
-        # TODO: Query could return more than one result
-        manager_pod = read(`kubectl get pods -l job-name=$job_name -o 'jsonpath={..metadata.name}'`, String)
+        manager_pod = first(job_pods(job_name))
         worker_pod = "$manager_pod-worker-9001"
 
         # @info "Describe manager:\n" * read(`kubectl describe pod/$manager_pod`, String)
