@@ -31,7 +31,7 @@ jobs:
         with:
           minikube version: v1.19.0
           kubernetes version: v1.20.5
-          driver: docker
+          driver: none
       # Since the GitHub Linux runners only have 2 CPUs we'll be quite limited in the
       # number of pods we can launch. By adding an additional node we'll be oversubscribing
       # but it should avoid pods stuck being stuck as "Pending".
@@ -39,16 +39,8 @@ jobs:
         run: |
           minikube node add
           minikube node list
-      - name: Set up minikube docker-env
-        run: minikube docker-env | sed -n 's/^export \(.*\)="\(.*\)"/\1=\2/p' >> $GITHUB_ENV
-      - name: Check GITHUB_ENV
-        run: |
-          env
-          docker ps -a
-          docker images
-
-      # - name: Setup minikube docker environment
-      #   run: minikube docker-env >> $GITHUB_ENV
+      # - name: Set up minikube docker-env
+      #   run: minikube docker-env | sed -n 's/^export \(.*\)="\(.*\)"/\1=\2/p' >> $GITHUB_ENV
 
       - uses: julia-actions/setup-julia@v1
         with:
