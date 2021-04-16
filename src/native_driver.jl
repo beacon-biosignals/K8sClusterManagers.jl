@@ -165,6 +165,7 @@ function launch(manager::K8sNativeManager, params::Dict, launched::Array, c::Con
                 end
             end
             status = wait_for_pod_init(manager, pod)
+            @show status.podIP port
             sleep(2)
             config = WorkerConfig()
             config.host = status.podIP
