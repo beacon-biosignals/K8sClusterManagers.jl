@@ -122,8 +122,10 @@ using kubectl_jll: kubectl
         end
     end
 
-    # Tests that interact with a real Kubernetes cluster
-    @testset "Kubernetes Cluster Tests" begin
-        include("cluster.jl")
+    # Tests that interact with a real, usually local, Kubernetes cluster
+    if get(ENV, "K8S_CLUSTER_TESTS", "true")
+        @testset "Kubernetes Cluster Tests" begin
+            include("cluster.jl")
+        end
     end
 end

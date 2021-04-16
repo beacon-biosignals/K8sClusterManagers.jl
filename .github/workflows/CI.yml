@@ -12,15 +12,65 @@ jobs:
       fail-fast: false
       matrix:
         version:
-          - '1'
+          - "1"
         os:
           - ubuntu-latest
         arch:
           - x64
+    env:
+      K8S_CLUSTER_TESTS: "false"
     steps:
       - uses: actions/checkout@v2
         with:
           fetch-depth: 0
+      - uses: julia-actions/setup-julia@v1
+        with:
+          version: ${{ matrix.version }}
+          arch: ${{ matrix.arch }}
+      - uses: actions/cache@v2
+        with:
+          path: ~/.julia/artifacts
+          key: ${{ runner.os }}-test-artifacts-${{ hashFiles('**/Project.toml') }}
+          restore-keys: ${{ runner.os }}-test-artifacts
+      - uses: julia-actions/julia-buildpkg@v1
+      - uses: julia-actions/julia-runtest@v1
+        continue-on-error: ${{ matrix.version == 'nightly' }}
+      - uses: julia-actions/julia-processcoverage@v1
+      - uses: codecov/codecov-action@v1
+        with:
+          file: lcov.info
+
+  docs:
+    name: Documentation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: julia-actions/setup-julia@v1
+        with:
+          version: "1"
+      - run: |
+          julia --project=docs -e '
+            using Pkg
+            Pkg.develop(PackageSpec(path=pwd()))
+            Pkg.instantiate()'
+      - run: julia --project=docs docs/make.jl
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}
+
+  cluster-test:
+    name: Cluster Test
+    runs-on: ubuntu-latest
+    env:
+      K8S_CLUSTER_TESTS: "true"
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - uses: julia-actions/setup-julia@v1
+        with:
+          version: "1"
+      - uses: julia-actions/julia-buildpkg@v1
 
       # https://github.com/marketplace/actions/docker-setup-buildx
       - name: Set up Docker Buildx
@@ -45,14 +95,8 @@ jobs:
           minikube version: v1.19.0
           kubernetes version: v1.20.5
           driver: docker
-          # Undocumented argument
+          # Undocumented argument: https://github.com/manusa/actions-setup-minikube/issues/41
           start args: --nodes=2 --cni=kindnet
-      # - name: Set up additional minikube node(s)
-      #   run: |
-      #     minikube delete
-      #     minikube start --
-      #     minikube node add
-      #     minikube node list
 
       # To use a Docker image in the cluster it must first be made available to the cluster
       # nodes. In single node clusters the easy way to do this with the Docker driver would
@@ -64,40 +108,13 @@ jobs:
         run: |
           for node in $(minikube node list | cut -f1); do
               echo "Transfering image to node $node..."
-              chmod 600 $MINIKUBE_HOME/.minikube/machines/$node/id_rsa  # Default permissions too open
+              # Default permissions too open: https://github.com/manusa/actions-setup-minikube/issues/40
+              chmod 600 $MINIKUBE_HOME/.minikube/machines/$node/id_rsa
               docker save $K8S_CLUSTER_MANAGERS_IMAGE | minikube ssh --node $node --native-ssh=false -- docker load
           done
 
-      - uses: julia-actions/setup-julia@v1
-        with:
-          version: ${{ matrix.version }}
-          arch: ${{ matrix.arch }}
-      - uses: actions/cache@v2
-        with:
-          path: ~/.julia/artifacts
-          key: ${{ runner.os }}-test-artifacts-${{ hashFiles('**/Project.toml') }}
-          restore-keys: ${{ runner.os }}-test-artifacts
-      - uses: julia-actions/julia-buildpkg@v1
       - uses: julia-actions/julia-runtest@v1
-        continue-on-error: ${{ matrix.version == 'nightly' }}
       - uses: julia-actions/julia-processcoverage@v1
       - uses: codecov/codecov-action@v1
         with:
           file: lcov.info
-  docs:
-    name: Documentation
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - uses: julia-actions/setup-julia@v1
-        with:
-          version: '1'
-      - run: |
-          julia --project=docs -e '
-            using Pkg
-            Pkg.develop(PackageSpec(path=pwd()))
-            Pkg.instantiate()'
-      - run: julia --project=docs docs/make.jl
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}
