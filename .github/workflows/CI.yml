@@ -45,10 +45,14 @@ jobs:
           minikube version: v1.19.0
           kubernetes version: v1.20.5
           driver: docker
-      - name: Set up additional minikube node(s)
-        run: |
-          minikube node add
-          minikube node list
+          # Undocumented argument
+          start args: --nodes=2 --cni=kindnet
+      # - name: Set up additional minikube node(s)
+      #   run: |
+      #     minikube delete
+      #     minikube start --
+      #     minikube node add
+      #     minikube node list
 
       # To use a Docker image in the cluster it must first be made available to the cluster
       # nodes. In single node clusters the easy way to do this with the Docker driver would
