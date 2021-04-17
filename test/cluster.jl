@@ -19,7 +19,7 @@ end
 #
 # Alternative solutions:
 # - Use `imagePullPolicy: Always` (doesn't work with local images)
-# - Introduce a unique label
+# - Introduce a unique label (modify the template)
 # - Delete the old job first
 # - Possibly switching to a pod for the manager instead of a job
 const TAG = if !isempty(read(`git --git-dir $GIT_DIR status --short`))
@@ -38,7 +38,9 @@ if !haskey(ENV, "K8S_CLUSTER_MANAGERS_TEST_IMAGE")
 end
 
 pod_exists(pod_name) = success(`kubectl get pod/$pod_name`)
-pod_logs(pod_name) = read(`kubectl logs $pod_name`, String)
+
+# Will fail if called and the job is in state "Waiting"
+pod_logs(pod_name) = read(ignorestatus(`kubectl logs $pod_name`), String)
 
 # https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-phase
 pod_phase(pod_name) = read(`kubectl get pod/$pod_name -o 'jsonpath={.status.phase}'`, String)
@@ -80,57 +82,67 @@ let job_name = "test-worker-success"
             write(p.in, config)
         end
 
-        # Wait for job to reach status: "Complete" or "Failed"
+        # Wait for job to reach status: "Complete" or "Failed".
+        #
+        # There are a few scenarios where the job may become stuck:
+        # - Insufficient cluster resources (pod stuck in the "Pending" status)
+        # - Local Docker image does not exist (ErrImageNeverPull)
+        @info "Waiting for $job_name job. This could take up to 2 minutes..."
         job_status_cmd = `kubectl get job/$job_name -o 'jsonpath={..status..type}'`
-        manager_pod = nothing
-        worker_pod = nothing
-
-        # TODO: There are a few scenarios in which this wait loop could just hang:
-        # - Pod stuck as pending due to not enough cluster resources
-        # - Failure to pull Docker image will cause job not to complete
-        while isempty(read(job_status_cmd, String))
-            if manager_pod === nothing
-                manager_pod = first(job_pods(job_name))
-                worker_pod = "$manager_pod-worker-9001"
-            elseif pod_phase(manager_pod) in ("Failed", "Unknown")
-                break
-            end
-
-            @info read(ignorestatus(`kubectl describe job/$job_name`), String)
-            @info read(ignorestatus(`kubectl get pods -L job-name=$job_name`), String)
-            if manager_pod !== nothing && pod_exists(manager_pod)
-                @info "Describe manager pod ($manager_pod):\n" * read(ignorestatus(`kubectl describe pod/$manager_pod`), String)
-                @info pod_phase(manager_pod)
-            end
-            if worker_pod !== nothing && pod_exists(worker_pod)
-                @info "Describe worker pod ($worker_pod):\n" * read(ignorestatus(`kubectl describe pod/$worker_pod`), String)
-                @info pod_phase(worker_pod)
-            end
-
-            sleep(20)
+        result = timedwait(120; pollint=10) do
+            !isempty(read(job_status_cmd, String))
         end
 
         manager_pod = first(job_pods(job_name))
         worker_pod = "$manager_pod-worker-9001"
 
-        # @info "Describe manager:\n" * read(`kubectl describe pod/$manager_pod`, String)
+        test_results = [
+            @test read(job_status_cmd, String) == "Complete"
 
-        if pod_exists(manager_pod)
-            @info "Logs for manager ($manager_pod):\n" * pod_logs(manager_pod)
-        else
-            @info "No logs for manager ($manager_pod)"
+            @test pod_exists(manager_pod)
+            @test pod_exists(worker_pod)
+
+            @test pod_phase(manager_pod) == "Succeeded"
+            @test_broken pod_phase(worker_pod) == "Succeeded"
+
+            # TODO: Test logs
+        ]
+
+        # Display details to assist in debugging the failure
+        if any(r -> !(r isa Test.Pass), test_results)
+            cmd = `kubectl describe job/$job_name`
+            @info "Describe job:\n" * read(ignorestatus(cmd), String)
+
+            # Note: A job doesn't contain a direct reference to the pod it starts so
+            # re-using the job name can result in us identifying the wrong manager pod.
+            cmd = `kubectl get pods -L job-name=$job_name`
+            @info "List pods:\n" * read(ignorestatus(cmd), String)
+
+            if pod_exists(manager_pod)
+                cmd = `kubectl describe pod/$manager_pod`
+                @info "Describe manager pod:\n" * read(cmd, String)
+            else
+                @info "Manager pod \"$manager_pod\" not found"
+            end
+
+            if pod_exists(worker_pod)
+                cmd = `kubectl describe pod/$worker_pod`
+                @info "Describe worker pod:\n" * read(cmd, String)
+            else
+                @info "Worker pod \"$worker_pod\" not found"
+            end
+
+            if pod_exists(manager_pod)
+                @info "Logs for manager ($manager_pod):\n" * pod_logs(manager_pod)
+            else
+                @info "No logs for manager ($manager_pod)"
+            end
+
+            if pod_exists(worker_pod)
+                @info "Logs for worker ($worker_pod):\n" * pod_logs(worker_pod)
+            else
+                @info "No logs for worker ($worker_pod)"
+            end
         end
-
-        if pod_exists(worker_pod)
-            @info "Logs for worker ($worker_pod):\n" * pod_logs(worker_pod)
-        else
-            @info "No logs for worker ($worker_pod)"
-        end
-
-        @test pod_exists(manager_pod)
-        @test pod_exists(worker_pod)
-
-        @test pod_phase(manager_pod) == "Succeeded"
-        @test_broken pod_phase(worker_pod) == "Succeeded"
     end
 end
