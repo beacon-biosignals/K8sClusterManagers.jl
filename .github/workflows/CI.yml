@@ -79,7 +79,7 @@ jobs:
         run: |
           GIT_REV=$(git rev-parse --short HEAD)
           IMAGE=k8s-cluster-managers:$GIT_REV
-          echo "K8S_CLUSTER_MANAGERS_IMAGE=$IMAGE" >> $GITHUB_ENV
+          echo "K8S_CLUSTER_MANAGERS_TEST_IMAGE=$IMAGE" >> $GITHUB_ENV
           docker build -t $IMAGE .
 
       # Factors influencing the setup of the "local" Kubernetes cluster:
@@ -110,7 +110,7 @@ jobs:
               echo "Transfering image to node $node..."
               # Default permissions too open: https://github.com/manusa/actions-setup-minikube/issues/40
               chmod 600 $MINIKUBE_HOME/.minikube/machines/$node/id_rsa
-              docker save $K8S_CLUSTER_MANAGERS_IMAGE | minikube ssh --node $node --native-ssh=false -- docker load
+              docker save $K8S_CLUSTER_MANAGERS_TEST_IMAGE | minikube ssh --node $node --native-ssh=false -- docker load
           done
 
       - uses: julia-actions/julia-runtest@v1
