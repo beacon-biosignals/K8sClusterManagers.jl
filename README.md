@@ -120,6 +120,5 @@ run with [minikube](https://minikube.sigs.k8s.io/docs/start/). To run these test
 following are required:
 
 - A local Kubernetes cluster (e.g. [minikube](https://minikube.sigs.k8s.io/docs/start/))
-- Docker needs to be installed an on the `PATH`
-- [`kubectl`](https://kubernetes.io/docs/tasks/tools/) (note: included with Docker Desktop)
+- Docker installed and on the `PATH`
 - Resources for Docker Desktop, if used, should be set to a minimum of 3 CPUs and 2.25 GB Memory

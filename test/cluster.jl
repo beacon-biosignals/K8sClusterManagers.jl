@@ -39,13 +39,13 @@ if !haskey(ENV, "K8S_CLUSTER_MANAGERS_TEST_IMAGE")
     # run(pipeline(`docker save $TEST_IMAGE`, `minikube ssh --native-ssh=false -- docker load`))
 end
 
-pod_exists(pod_name) = success(`kubectl get pod/$pod_name`)
+pod_exists(pod_name) = kubectl(exe -> success(`$exe get pod/$pod_name`))
 
 # Will fail if called and the job is in state "Waiting"
-pod_logs(pod_name) = read(ignorestatus(`kubectl logs $pod_name`), String)
+pod_logs(pod_name) = kubectl(exe -> read(ignorestatus(`$exe logs $pod_name`), String))
 
 # https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-phase
-pod_phase(pod_name) = read(`kubectl get pod/$pod_name -o 'jsonpath={.status.phase}'`, String)
+pod_phase(pod_name) = kubectl(exe -> read(`$exe get pod/$pod_name -o 'jsonpath={.status.phase}'`, String))
 
 function job_pods(job_name, labels::Pair...)
     selectors = Dict{String,String}(labels)
@@ -54,7 +54,9 @@ function job_pods(job_name, labels::Pair...)
 
     # Adapted from: https://kubernetes.io/docs/concepts/workloads/controllers/job/#running-an-example-job
     jsonpath = "{range .items[*]}{.metadata.name}{\"\\n\"}{end}"
-    output = read(`kubectl get pods -l $selector -o=jsonpath=$jsonpath`, String)
+    output = kubectl() do exe
+        read(`$exe get pods -l $selector -o=jsonpath=$jsonpath`, String)
+    end
     return split(output, '\n')
 end
 
@@ -86,8 +88,10 @@ let job_name = "test-success"
 
         command = ["julia", "-e", escape_yaml_string(code)]
         config = render(JOB_TEMPLATE; job_name, image=TEST_IMAGE, command)
-        open(`kubectl apply --force -f -`, "w", stdout) do p
-            write(p.in, config)
+        kubectl() do exe
+            open(`$exe apply --force -f -`, "w", stdout) do p
+                write(p.in, config)
+            end
         end
 
         # Wait for job to reach status: "Complete" or "Failed".
@@ -96,9 +100,11 @@ let job_name = "test-success"
         # - Insufficient cluster resources (pod stuck in the "Pending" status)
         # - Local Docker image does not exist (ErrImageNeverPull)
         @info "Waiting for $job_name job. This could take up to 4 minutes..."
-        job_status_cmd = `kubectl get job/$job_name -o 'jsonpath={..status..type}'`
+        job_status_subcmd = `get job/$job_name -o 'jsonpath={..status..type}'`
         result = timedwait(4 * 60; pollint=10) do
-            !isempty(read(job_status_cmd, String))
+            kubectl() do exe
+                !isempty(read(`$exe $job_status_subcmd`, String))
+            end
         end
 
         manager_pod = first(job_pods(job_name))
@@ -108,7 +114,7 @@ let job_name = "test-success"
         matches = collect(eachmatch(POD_NAME_REGEX, manager_log))
 
         test_results = [
-            @test read(job_status_cmd, String) == "Complete"
+            @test kubectl(exe -> read(`$exe $job_status_subcmd`, String)) == "Complete"
 
             @test pod_exists(manager_pod)
             @test pod_exists(worker_pod)
@@ -123,24 +129,32 @@ let job_name = "test-success"
 
         # Display details to assist in debugging the failure
         if any(r -> !(r isa Test.Pass || r isa Test.Broken), test_results)
-            cmd = `kubectl describe job/$job_name`
-            @info "Describe job:\n" * read(ignorestatus(cmd), String)
+            kubectl() do exe
+                cmd = `$exe describe job/$job_name`
+                @info "Describe job:\n" * read(ignorestatus(cmd), String)
+            end
 
             # Note: A job doesn't contain a direct reference to the pod it starts so
             # re-using the job name can result in us identifying the wrong manager pod.
-            cmd = `kubectl get pods -L job-name=$job_name`
-            @info "List pods:\n" * read(ignorestatus(cmd), String)
+            kubectl() do exe
+                cmd = `$exe get pods -L job-name=$job_name`
+                @info "List pods:\n" * read(ignorestatus(cmd), String)
+            end
 
             if pod_exists(manager_pod)
-                cmd = `kubectl describe pod/$manager_pod`
-                @info "Describe manager pod:\n" * read(cmd, String)
+                kubectl() do exe
+                    cmd = `$exe describe pod/$manager_pod`
+                    @info "Describe manager pod:\n" * read(cmd, String)
+                end
             else
                 @info "Manager pod \"$manager_pod\" not found"
             end
 
             if pod_exists(worker_pod)
-                cmd = `kubectl describe pod/$worker_pod`
-                @info "Describe worker pod:\n" * read(cmd, String)
+                kubectl() do exe
+                    cmd = `$exe describe pod/$worker_pod`
+                    @info "Describe worker pod:\n" * read(cmd, String)
+                end
             else
                 @info "Worker pod \"$worker_pod\" not found"
             end
