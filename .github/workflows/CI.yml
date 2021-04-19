@@ -12,11 +12,13 @@ jobs:
       fail-fast: false
       matrix:
         version:
-          - '1'
+          - "1"
         os:
           - ubuntu-latest
         arch:
           - x64
+    env:
+      K8S_CLUSTER_TESTS: "false"
     steps:
       - uses: actions/checkout@v2
         with:
@@ -37,6 +39,7 @@ jobs:
       - uses: codecov/codecov-action@v1
         with:
           file: lcov.info
+
   docs:
     name: Documentation
     runs-on: ubuntu-latest
@@ -44,7 +47,7 @@ jobs:
       - uses: actions/checkout@v2
       - uses: julia-actions/setup-julia@v1
         with:
-          version: '1'
+          version: "1"
       - run: |
           julia --project=docs -e '
             using Pkg
@@ -54,3 +57,64 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}
+
+  cluster-test:
+    name: Cluster Test
+    runs-on: ubuntu-latest
+    env:
+      K8S_CLUSTER_TESTS: "true"
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - uses: julia-actions/setup-julia@v1
+        with:
+          version: "1"
+      - uses: julia-actions/julia-buildpkg@v1
+
+      # https://github.com/marketplace/actions/docker-setup-buildx
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+      - name: Build Docker image
+        run: |
+          GIT_REV=$(git rev-parse --short HEAD)
+          IMAGE=k8s-cluster-managers:$GIT_REV
+          echo "K8S_CLUSTER_MANAGERS_TEST_IMAGE=$IMAGE" >> $GITHUB_ENV
+          docker build -t $IMAGE .
+
+      # Factors influencing the setup of the "local" Kubernetes cluster:
+      # - Limited resources on GitHub runners only allow running a 1 pod at a time with
+      #   the default minikube install (additional jobs would be stuck as "Pending")
+      # - minikube restricts max CPUs per node to the number of CPUs on the host
+      # - minikube "none" driver only supports a single node (due to port conflicts)
+      # - minikube "docker" driver requires local-only images to present on the node where
+      #   it is used (all nodes in practice)
+      - name: Set up minikube
+        uses: manusa/actions-setup-minikube@v2.3.1
+        with:
+          minikube version: v1.19.0
+          kubernetes version: v1.20.5
+          driver: docker
+          # Undocumented argument: https://github.com/manusa/actions-setup-minikube/issues/41
+          start args: --nodes=2 --cni=kindnet
+
+      # To use a Docker image in the cluster it must first be made available to the cluster
+      # nodes. In single node clusters the easy way to do this with the Docker driver would
+      # be to use `minikube docker-env` but since we're using multi-node cluster we have to
+      # take an alternate approach. The recommended way is to use the registry addon but
+      # requires more setup than the current approach of directly transferring the image to
+      # each of the nodes.
+      - name: Push image to node(s)
+        run: |
+          for node in $(minikube node list | cut -f1); do
+              echo "Transfering image to node $node..."
+              # Default permissions too open: https://github.com/manusa/actions-setup-minikube/issues/40
+              chmod 600 $MINIKUBE_HOME/.minikube/machines/$node/id_rsa
+              docker save $K8S_CLUSTER_MANAGERS_TEST_IMAGE | minikube ssh --node $node --native-ssh=false -- docker load
+          done
+
+      - uses: julia-actions/julia-runtest@v1
+      - uses: julia-actions/julia-processcoverage@v1
+      - uses: codecov/codecov-action@v1
+        with:
+          file: lcov.info

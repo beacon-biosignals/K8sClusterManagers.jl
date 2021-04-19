@@ -2,7 +2,9 @@ using Distributed
 using K8sClusterManagers
 using K8sClusterManagers: DEFAULT_NAMESPACE
 using Kuber: KuberContext
-using Swagger
+using LibGit2: LibGit2
+using Mustache: Mustache, render
+using Swagger: Swagger
 using Test
 using kubectl_jll: kubectl
 
@@ -119,6 +121,13 @@ using kubectl_jll: kubectl
                     @test length(Base.catch_stack()) == 1
                 end
             end
+        end
+    end
+
+    # Tests that interact with a real, usually local, Kubernetes cluster
+    if parse(Bool, get(ENV, "K8S_CLUSTER_TESTS", "true"))
+        @testset "Kubernetes Cluster Tests" begin
+            include("cluster.jl")
         end
     end
 end

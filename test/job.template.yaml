@@ -1,0 +1,58 @@
+# Minimal set of permissions required by K8sClusterManagers.jl
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: julia-manager-role
+rules:
+- apiGroups: [""]  # "" indicates the core API group
+  resources: ["pods"]
+  verbs: ["create", "get"]
+
+---
+# https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: julia-manager-serviceaccount
+automountServiceAccountToken: true
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: julia-manager-role-binding
+roleRef:
+  kind: Role
+  name: julia-manager-role
+  apiGroup: rbac.authorization.k8s.io
+subjects:
+- kind: ServiceAccount
+  name: julia-manager-serviceaccount
+
+---
+# https://kubernetes.io/docs/concepts/workloads/controllers/job/
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{{:job_name}}}
+spec:
+  # Clean up finished jobs
+  ttlSecondsAfterFinished: 10
+  # Stop the job from creating a new pod when the container exits in error
+  backoffLimit: 0
+  template:
+    # Note: Pods are automatically assigned the label `job-name` using the job's name
+    spec:
+      serviceAccountName: julia-manager-serviceaccount
+      restartPolicy: Never
+      containers:
+      - name: manager
+        image: {{{:image}}}
+        imagePullPolicy: Never  # Avoid attempting to pull local-only images
+        resources:
+          limits:
+            cpu: 1
+            memory: 750M
+        command: [{{#:command}}"{{{.}}}"{{^.[end]}}, {{/.[end]}}{{/:command}}]
+        stdin: true
+        tty: true
