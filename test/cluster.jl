@@ -1,7 +1,3 @@
-using LibGit2
-using Mustache
-using Test
-
 const PKG_DIR = abspath(@__DIR__, "..")
 const GIT_DIR = joinpath(PKG_DIR, ".git")
 const GIT_REV = try
@@ -79,11 +75,11 @@ let job_name = "test-success"
                 ko.spec.containers[1].imagePullPolicy = "Never"
                 return ko
             end
-            K8sClusterManagers.addprocs_pod(1; configure, retry_seconds=60, memory="2Gi")
+            K8sClusterManagers.addprocs_pod(1; configure, retry_seconds=60, memory="750M")
 
             println("Num Processes: ", nprocs())
             for i in workers()
-                # TODO: HOSTNAME is the name of the pod. Maybe should return other info
+                # Return the name of the pod via HOSTNAME
                 println("Worker pod \$i: ", remotecall_fetch(() -> ENV["HOSTNAME"], i))
             end
             """

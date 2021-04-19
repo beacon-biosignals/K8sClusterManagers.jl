@@ -2,7 +2,9 @@ using Distributed
 using K8sClusterManagers
 using K8sClusterManagers: DEFAULT_NAMESPACE
 using Kuber: KuberContext
-using Swagger
+using LibGit2: LibGit2
+using Mustache: Mustache, render
+using Swagger: Swagger
 using Test
 using kubectl_jll: kubectl
 
