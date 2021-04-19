@@ -27,10 +27,6 @@ RUN if [ "$PKG_PRECOMPILE" = "true" ]; then \
         julia -e 'using Pkg; VERSION >= v"1.7.0-DEV.521" ? Pkg.precompile(strict=true) : Pkg.API.precompile()'; \
     fi
 
-# Temporary: Install kubectl for ARM64
-RUN curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"; \
-    install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
-
 # Build the package.
 COPY . $PKG_PATH/
 RUN if [ -f $PKG_PATH/deps/build.jl ]; then \

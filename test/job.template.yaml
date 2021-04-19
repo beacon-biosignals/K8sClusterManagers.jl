@@ -2,7 +2,6 @@
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  namespace: default
   name: julia-manager-role
 rules:
 - apiGroups: [""]  # "" indicates the core API group
@@ -22,7 +21,6 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: julia-manager-role-binding
-  namespace: default
 roleRef:
   kind: Role
   name: julia-manager-role
