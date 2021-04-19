@@ -31,10 +31,16 @@ end
 const JOB_TEMPLATE = Mustache.load(joinpath(@__DIR__, "job.template.yaml"))
 const TEST_IMAGE = get(ENV, "K8S_CLUSTER_MANAGERS_TEST_IMAGE", "k8s-cluster-managers:$TAG")
 
+const POD_NAME_REGEX = r"Worker pod (?<worker_id>\d+): (?<pod_name>[a-z0-9.-]+)"
+
 # As a convenience we'll automatically build the Docker image when a user uses `Pkg.test()`.
 # If the environmental variable is set we expect the Docker image has already been built.
 if !haskey(ENV, "K8S_CLUSTER_MANAGERS_TEST_IMAGE")
     run(`docker build -t $TEST_IMAGE $PKG_DIR`)
+
+    # Alternate build call which works on Apple Silicon
+    # run(`docker build --platform x86_64 -t $TEST_IMAGE $PKG_DIR`)
+    # run(pipeline(`docker save $TEST_IMAGE`, `minikube ssh --native-ssh=false -- docker load`))
 end
 
 pod_exists(pod_name) = success(`kubectl get pod/$pod_name`)
@@ -63,11 +69,17 @@ end
 # escape uses of `\` and `"`. It so happens that `escape_string` follows the same rules
 escape_yaml_string(str::AbstractString) = escape_string(str)
 
-let job_name = "test-worker-success"
+let job_name = "test-success"
     @testset "$job_name" begin
         code = """
             using Distributed, K8sClusterManagers
-            K8sClusterManagers.addprocs_pod(1, retry_seconds=60, memory="2Gi")
+
+            # Avoid trying to pull local-only image
+            function configure(ko)
+                ko.spec.containers[1].imagePullPolicy = "Never"
+                return ko
+            end
+            K8sClusterManagers.addprocs_pod(1; configure, retry_seconds=60, memory="2Gi")
 
             println("Num Processes: ", nprocs())
             for i in workers()
@@ -87,14 +99,17 @@ let job_name = "test-worker-success"
         # There are a few scenarios where the job may become stuck:
         # - Insufficient cluster resources (pod stuck in the "Pending" status)
         # - Local Docker image does not exist (ErrImageNeverPull)
-        @info "Waiting for $job_name job. This could take up to 2 minutes..."
+        @info "Waiting for $job_name job. This could take up to 4 minutes..."
         job_status_cmd = `kubectl get job/$job_name -o 'jsonpath={..status..type}'`
-        result = timedwait(120; pollint=10) do
+        result = timedwait(4 * 60; pollint=10) do
             !isempty(read(job_status_cmd, String))
         end
 
         manager_pod = first(job_pods(job_name))
         worker_pod = "$manager_pod-worker-9001"
+
+        manager_log = pod_logs(manager_pod)
+        matches = collect(eachmatch(POD_NAME_REGEX, manager_log))
 
         test_results = [
             @test read(job_status_cmd, String) == "Complete"
@@ -105,11 +120,13 @@ let job_name = "test-worker-success"
             @test pod_phase(manager_pod) == "Succeeded"
             @test_broken pod_phase(worker_pod) == "Succeeded"
 
-            # TODO: Test logs
+            @test length(matches) == 1
+            @test matches[1][:worker_id] == "2"
+            @test matches[1][:pod_name] == worker_pod
         ]
 
         # Display details to assist in debugging the failure
-        if any(r -> !(r isa Test.Pass), test_results)
+        if any(r -> !(r isa Test.Pass || r isa Test.Broken), test_results)
             cmd = `kubectl describe job/$job_name`
             @info "Describe job:\n" * read(ignorestatus(cmd), String)
 
