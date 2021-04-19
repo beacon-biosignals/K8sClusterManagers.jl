@@ -116,9 +116,13 @@ kubectl describe pod pod_name -n my-namespace
 
 The K8sClusterManagers package includes tests that are expect to have access to a Kubernetes
 cluster. The tests should be able to be run in any Kubernetes cluster but have only been
-run with [minikube](https://minikube.sigs.k8s.io/docs/start/). To run these tests the
-following are required:
+run with [minikube](https://minikube.sigs.k8s.io/).
 
-- A local Kubernetes cluster (e.g. [minikube](https://minikube.sigs.k8s.io/docs/start/))
-- Docker installed and on the `PATH`
-- Resources for Docker Desktop, if used, should be set to a minimum of 3 CPUs and 2.25 GB Memory
+### Minikube
+
+1. [Install Docker or Docker Desktop](https://docs.docker.com/get-docker/)
+2. If using Docker Desktop: set the resources to a minimum of 3 CPUs and 2.25 GB Memory
+3. [Install minikube](https://minikube.sigs.k8s.io/docs/start/)
+4. Start the Kubernetes cluster: `minikube start`
+5. Use the in-cluster Docker daemon for image builds: `eval $(minikube docker-env)` (Note: only works with single-node clusters)
+6. Run the K8sClusterManagers.jl tests
