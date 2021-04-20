@@ -3,9 +3,9 @@ module K8sClusterManagers
 using Dates
 using Distributed
 using JSON
-using kubectl_jll
 using Kuber
 using Mocking: Mocking, @mock
+using kubectl_jll
 
 import Distributed: launch, manage, kill
 
