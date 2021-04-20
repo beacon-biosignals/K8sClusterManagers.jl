@@ -10,7 +10,7 @@ import Distributed: launch, manage, kill
 
 worker_arg() = `--worker=$(Distributed.init_multi(); cluster_cookie())`
 
-include("native_driver.jl")
+
 export addprocs_pod
 export K8sNativeManager
 export launch, manage, kill
@@ -39,5 +39,9 @@ function __init__()
     # Kuber.jl expects that Kubernetes API server is available via: http://localhost:8001
     restart_kubectl_proxy()
 end
+
+include("namespace.jl")
+include("pod.jl")
+include("native_driver.jl")
 
 end
