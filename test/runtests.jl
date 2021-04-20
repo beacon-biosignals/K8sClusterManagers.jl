@@ -13,10 +13,10 @@ Mocking.activate()
 
 
 @testset "K8sClusterManagers" begin
-    @testset "current_config_namespace" begin
+    @testset "config_namespace" begin
         @testset "user namespace" begin
             # Validate that we can process whatever the current system's namespace is
-            result = @test K8sClusterManagers.current_config_namespace() isa Union{String,Nothing}
+            result = @test K8sClusterManagers.config_namespace() isa Union{String,Nothing}
 
             if !(result isa Test.Pass)
                 kubectl() do exe
@@ -42,7 +42,7 @@ Mocking.activate()
                   """)
 
             withenv("KUBECONFIG" => config_path) do
-                @test K8sClusterManagers.current_config_namespace() == "test-namespace"
+                @test K8sClusterManagers.config_namespace() == "test-namespace"
             end
         end
 
@@ -57,7 +57,7 @@ Mocking.activate()
                   """)
 
             withenv("KUBECONFIG" => config_path) do
-                @test K8sClusterManagers.current_config_namespace() === nothing
+                @test K8sClusterManagers.config_namespace() === nothing
             end
         end
 
@@ -76,7 +76,7 @@ Mocking.activate()
                   """)
 
             withenv("KUBECONFIG" => config_path) do
-                @test K8sClusterManagers.current_config_namespace() == nothing
+                @test K8sClusterManagers.config_namespace() == nothing
             end
         end
 
@@ -95,7 +95,7 @@ Mocking.activate()
                   """)
 
             withenv("KUBECONFIG" => config_path) do
-                @test K8sClusterManagers.current_config_namespace() == nothing
+                @test K8sClusterManagers.config_namespace() == nothing
             end
         end
     end
@@ -121,12 +121,12 @@ Mocking.activate()
 
     @testset "current_namespace" begin
         @testset "fallback namespace" begin
-            config_path = tempname()
+            config_path = touch(tempname())
             patches = [@patch isfile(f) = false]
 
             withenv("KUBECONFIG" => config_path) do
                 apply(patches) do
-                    @test K8sClusterManagers.pod_namespace() === nothing
+                    @test K8sClusterManagers.current_namespace() === DEFAULT_NAMESPACE
                 end
             end
         end
