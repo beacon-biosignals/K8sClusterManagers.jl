@@ -11,8 +11,16 @@ using kubectl_jll: kubectl
 
 Mocking.activate()
 
-# Re-use the same Kuber context throughout the tests
-const KUBER_CONTEXT = K8sClusterManagers.kuber_context()
+# Re-use the same Kuber context throughout the tests. Note we cannot just set this as a load
+# time constant as it depends on K8sClusterManagers being initialized first.
+const KUBER_CONTEXT = Ref{KuberContext}()
+
+function _kuber_context()
+    if !isassigned(KUBER_CONTEXT)
+        KUBER_CONTEXT[] = K8sClusterManagers.kuber_context()
+    end
+    return KUBER_CONTEXT[]
+end
 
 
 @testset "K8sClusterManagers" begin

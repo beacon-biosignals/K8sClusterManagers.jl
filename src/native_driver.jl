@@ -116,7 +116,13 @@ function Distributed.launch(manager::K8sClusterManager, params::Dict, launched::
     # try not to overwhelm kubectl proxy; wait longer if more workers requested
     sleeptime = 0.1 * sqrt(length(manager.ports))
     asyncmap(manager.ports) do port
-        pod = manager.configure(worker_pod_spec(manager; port, cmd))
+        pod = @static if VERSION >= v"1.5"
+            worker_pod_spec(manager; port=port, cmd=cmd)
+        else
+            worker_pod_spec(manager; port, cmd)
+        end
+
+        pod = manager.configure(pod)
 
         start = time()
         try
