@@ -11,6 +11,9 @@ using kubectl_jll: kubectl
 
 Mocking.activate()
 
+# Re-use the same Kuber context throughout the tests
+const KUBER_CONTEXT = K8sClusterManagers.kuber_context()
+
 
 @testset "K8sClusterManagers" begin
     include("namespace.jl")

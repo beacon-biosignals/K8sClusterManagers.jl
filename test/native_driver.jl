@@ -1,8 +1,8 @@
-@testset "addprocs_pod" begin
+@testset "K8sClusterManager" begin
     @testset "pods not found" begin
         withenv("HOSTNAME" => "localhost") do
             try
-                K8sClusterManagers.addprocs_pod(1)
+                K8sClusterManager(1; _ctx=KUBER_CONTEXT)
             catch ex
                 @test ex isa Swagger.ApiException
                 @test length(Base.catch_stack()) == 1

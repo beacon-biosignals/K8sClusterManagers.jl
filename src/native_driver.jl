@@ -1,17 +1,72 @@
-struct K8sNativeManager <: ClusterManager
-    ctx::Any
-    pods::Dict{Int, Any}
+const DEFAULT_WORKER_CPU = 1
+const DEFAULT_WORKER_MEMORY = "4Gi"
+
+struct K8sClusterManager <: ClusterManager
+    ctx::KuberContext
+    ports::Vector{UInt16}
+    driver_name::String
+    image::String
+    cpu::String
+    memory::String
+
     retry_seconds::Int
-    function K8sNativeManager(ports,
-                              driver_name::String,
-                              cmd::Cmd;
-                              configure=identity,
-                              namespace::String=current_namespace(),
-                              retry_seconds::Int,
-                              kwargs...)
-        pods, ctx = default_pods_and_context(namespace; configure=configure, driver_name=driver_name, ports=ports, cmd=cmd, kwargs...)
-        return new(ctx, pods, retry_seconds)
+    configure::Function
+end
+
+"""
+    K8sClusterManager(np::Integer; kwargs...)
+
+A cluster manager using Kubernetes (k8s) which spawns additional pods as workers. Attempts
+to spawn `np` workers but may launch with less workers if the cluster has less resources
+available.
+
+## Arguments
+
+- `np`: Desired number of worker pods to be launched.
+
+## Keywords
+
+- `namespace`: the Kubernetes namespace to launch worker pods within. Defaults to
+  `current_namespace()`.
+- `image`: Docker image to use for the workers. Defaults to using the image of the Julia
+  caller if running within a pod using a single container otherwise is a required argument.
+- `cpu`: [CPU resources requested](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#meaning-of-cpu)
+  for each worker. Defaults to `$(repr(DEFAULT_WORKER_CPU))`,
+- `memory`: [Memory resource requested](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#meaning-of-memory)
+  for each worker in bytes. Requests may provide a unit suffix (e.g. "G" for Gigabytes and
+  "GiB" for Gibibytes). Defaults to `$(repr(DEFAULT_WORKER_MEMORY))`.
+- `retry_seconds`: The maximum number of seconds to wait for a worker pod to enter the
+  "Running" phase. Once the time limit has been reached the manager will continue with the
+  number of workers available (`<= np`). Defaults to `180` (3 minutes).
+- `configure`: A function which allows modification of the worker pod specification before
+  their creation. Defaults to `identity`.
+"""
+function K8sClusterManager(np::Integer;
+                           namespace::String=current_namespace(),
+                           driver_name::String=get(ENV, "HOSTNAME", "localhost"),
+                           image=nothing,
+                           cpu=DEFAULT_WORKER_CPU,
+                           memory=DEFAULT_WORKER_MEMORY,
+                           retry_seconds::Int=180,
+                           configure=identity,
+                           _ctx=kuber_context(namespace))
+
+    # Default to using the image of the pod if possible
+    if image === nothing
+        pod = get_pod(_ctx, driver_name)
+        images = map(c -> c.image, pod.spec.containers)
+
+        if length(images) == 1
+            image = first(images)
+        elseif length(images) > 0
+            error("Unable to determine image from pod \"$driver_name\" which uses multiple containers")
+        else
+            error("Unable to find any images for pod \"$driver_name\"")
+        end
     end
+
+    ports = 9000 .+ (1:np)
+    return K8sClusterManager(_ctx, ports, driver_name, image, string(cpu), string(memory), retry_seconds, configure)
 end
 
 struct TimeoutException <: Exception
@@ -19,7 +74,7 @@ struct TimeoutException <: Exception
     cause::Exception
 end
 
-function wait_for_pod_init(manager::K8sNativeManager, pod)
+function wait_for_pod_init(manager::K8sClusterManager, pod)
     status = nothing
     start = time()
     while true
@@ -40,12 +95,29 @@ function wait_for_pod_init(manager::K8sNativeManager, pod)
     throw(TimeoutException("timed out after waiting for worker $(pod.metadata.name) to init for $(manager.retry_seconds) seconds, with status\n $status", e))
 end
 
-function launch(manager::K8sNativeManager, params::Dict, launched::Array, c::Condition)
+function worker_pod_spec(manager::K8sClusterManager; kwargs...)
+    pod = worker_pod_spec(manager.ctx;
+                          driver_name=manager.driver_name,
+                          image=manager.image,
+                          cpu=manager.cpu,
+                          memory=manager.memory,
+                          kwargs...)
+
+    return pod
+end
+
+function Distributed.launch(manager::K8sClusterManager, params::Dict, launched::Array, c::Condition)
+    exename = params[:exename]
+    exeflags = params[:exeflags]
+
+    cmd = `$exename $exeflags $(worker_arg())`
+
     errors = Dict()
     # try not to overwhelm kubectl proxy; wait longer if more workers requested
-    sleeptime = 0.1 * sqrt(length(manager.pods))
-    asyncmap(collect(pairs(manager.pods))) do p
-        port, pod = p
+    sleeptime = 0.1 * sqrt(length(manager.ports))
+    asyncmap(manager.ports) do port
+        pod = manager.configure(worker_pod_spec(manager; port, cmd))
+
         start = time()
         try
             sleep(rand() * sleeptime)
@@ -62,7 +134,7 @@ function launch(manager::K8sNativeManager, params::Dict, launched::Array, c::Con
             config = WorkerConfig()
             config.host = status.podIP
             config.port = port
-            config.userdata = pod.metadata.name
+            config.userdata = (; pod_name=pod.metadata.name)
             push!(launched, config)
             notify(c)
         catch e
@@ -82,71 +154,5 @@ function launch(manager::K8sNativeManager, params::Dict, launched::Array, c::Con
     for erray in values(errors)
         e, backtrace = first(erray)
         @warn "$(length(erray)) errors with the same type as" exception=(e, backtrace)
-    end
-end
-
-"""
-    addprocs_pod(np::Int;
-                 configure=identity,
-                 namespace::String=current_namespace(),
-                 image=nothing,
-                 memory::String="4Gi",
-                 cpu::String="1",
-                 retry_seconds::Int=180,
-                 exename=`julia`,
-                 exeflags=``,
-                 params...)
-
-Launch and connect to `np` worker processes.
-This may launch and return fewer pids than requested, if requested workers do not come online within `retry_seconds`.
-
-If `image` is unspecified
-- if the julia caller is in a pod containing a single container, its image will be used for the pods as well.
-- if there are multiple containers in the driver's pod, an error is thrown.
-
-For more advanced configuration,
-`configure` will be applied to the `Kuber.jl` pod specs of worker nodes before applying them.
-"""
-function addprocs_pod(np::Int;
-                      driver_name::String=get(ENV, "HOSTNAME", "localhost"),
-                      configure=identity,
-                      namespace::String=current_namespace(),
-                      image=nothing,
-                      serviceAccountName=nothing,
-                      memory::String="4Gi",
-                      cpu::String="1",
-                      retry_seconds::Int=180,
-                      exename=`julia`,
-                      exeflags=``,
-                      params...)
-    cmd = `$exename $exeflags $(worker_arg())`
-    return addprocs(K8sNativeManager(9000 .+ (1:np),
-                                     driver_name,
-                                     cmd;
-                                     configure=configure,
-                                     image=image,
-                                     memory=memory,
-                                     cpu=cpu,
-                                     namespace=namespace,
-                                     serviceAccountName=serviceAccountName,
-                                     retry_seconds=retry_seconds);
-                    merge((exename = exename,), params)...)
-end
-
-manage(manager::K8sNativeManager, id::Int64, config::WorkerConfig, op::Symbol) = nothing
-
-function kill(manager::K8sNativeManager, id::Int64, config::WorkerConfig)
-    sleeptime = 0.1 * sqrt(length(manager.pods))
-    start = time()
-    asyncmap(values(manager.pods)) do pod
-        sleep(rand() * sleeptime)
-        while time() - start < manager.retry_seconds
-            try
-                delete!(manager.ctx, :Pod, pod.metadata.name)
-                break
-            catch e
-                sleep(rand() * sleeptime)
-            end
-        end
     end
 end
