@@ -17,7 +17,8 @@ const KUBER_CONTEXT = Ref{KuberContext}()
 
 function _kuber_context()
     if !isassigned(KUBER_CONTEXT)
-        KUBER_CONTEXT[] = K8sClusterManagers.kuber_context()
+        # KUBER_CONTEXT[] = K8sClusterManagers.kuber_context()
+        KUBER_CONTEXT[] = KuberContext()
     end
     return KUBER_CONTEXT[]
 end
