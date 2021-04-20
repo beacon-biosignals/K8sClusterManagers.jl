@@ -110,7 +110,7 @@ function Distributed.launch(manager::K8sClusterManager, params::Dict, launched::
     exename = params[:exename]
     exeflags = params[:exeflags]
 
-    cmd = `$exename $exeflags $(worker_arg())`
+    cmd = `$exename $exeflags --worker=$(cluster_cookie())`
 
     errors = Dict()
     # try not to overwhelm kubectl proxy; wait longer if more workers requested

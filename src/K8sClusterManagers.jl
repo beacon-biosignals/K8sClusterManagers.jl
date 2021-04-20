@@ -6,11 +6,8 @@ using Kuber
 using Mocking: Mocking, @mock
 using kubectl_jll
 
-worker_arg() = `--worker=$(Distributed.init_multi(); cluster_cookie())`
-
-
-export addprocs_pod
 export K8sClusterManager
+
 
 const KUBECTL_PROXY_PROCESS = Ref{Base.Process}()
 
