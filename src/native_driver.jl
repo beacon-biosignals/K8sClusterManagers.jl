@@ -117,9 +117,9 @@ function Distributed.launch(manager::K8sClusterManager, params::Dict, launched::
     sleeptime = 0.1 * sqrt(length(manager.ports))
     asyncmap(manager.ports) do port
         pod = @static if VERSION >= v"1.5"
-            worker_pod_spec(manager; port=port, cmd=cmd)
-        else
             worker_pod_spec(manager; port, cmd)
+        else
+            worker_pod_spec(manager; port=port, cmd=cmd)
         end
 
         pod = manager.configure(pod)
