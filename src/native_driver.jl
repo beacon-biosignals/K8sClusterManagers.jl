@@ -19,7 +19,7 @@ const NAMESPACE_FILE = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
 
 Determine the Kubernetes namespace as specified by the current config context. If the
 namespace is not set, the current context is not set, or the current context is not defined
-then the default namespace `nothing` will be returned.
+then `nothing` will be returned.
 """
 function config_namespace()
     # https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/
@@ -42,7 +42,8 @@ end
 """
     pod_namespace() -> Union{String,Nothing}
 
-Return the namespace of the pod if running inside of a Kubernetes pod, otherwise `nothing`.
+Determine the namespace of the pod if running inside of a Kubernetes pod, otherwise return
+`nothing`.
 """
 function pod_namespace()
     return if @mock isfile(NAMESPACE_FILE)
