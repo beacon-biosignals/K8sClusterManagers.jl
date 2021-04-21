@@ -1,8 +1,9 @@
 @testset "self_pod" begin
     @testset "non-nested exceptions" begin
+        ctx = KuberContext()
         withenv("HOSTNAME" => "localhost") do
             try
-                K8sClusterManagers.self_pod(KUBER_CONTEXT)
+                K8sClusterManagers.self_pod(ctx)
             catch ex
                 # Show the original stacktrace if an unexpected error occurred.
                 ex isa Swagger.ApiException || rethrow()

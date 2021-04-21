@@ -7,7 +7,7 @@ const EMPTY_POD =
                              "affinity" => Dict())))
 
 
-function _KuberContext(namespace="default")
+function _KuberContext(namespace=DEFAULT_NAMESPACE)
     ctx = KuberContext()
     set_ns(ctx, namespace)
     return ctx
