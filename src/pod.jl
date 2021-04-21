@@ -18,13 +18,6 @@ function _set_api_versions!(ctx::KuberContext)
     return ctx
 end
 
-"""
-    self_pod(ctx::KuberContext)
-
-Kuber object representing the pod this julia session is running in.
-"""
-self_pod(ctx) = get_pod(ctx, ENV["HOSTNAME"])
-
 
 function get_pod(ctx, pod_name)
     # The following code is equivalent to calling Kuber's `get(ctx, :Pod, ENV["HOSTNAME"])`
