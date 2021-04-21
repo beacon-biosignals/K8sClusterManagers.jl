@@ -13,8 +13,9 @@ This is a `ClusterManager` for usage from a driver Julia session that:
 - is running on the cluster already.
 - has access to a working `kubectl` (from the julia-running-in-k8s-container context)
 
-Assuming you have `kubectl` installed locally and configured to connect to a cluster in namespace "my-namespace",
-you can easily set yourself up with just such a julia session by running for example `kubectl run example-driver-pod -it --image julia:1.5.3 -n my-namespace`.
+Assuming you have `kubectl` installed locally and configured to connect to a cluster using
+the namespace of your choice, you can easily set yourself up with just such a julia session
+by running for example `kubectl run example-driver-pod -it --image julia:1.5.3`.
 
 Or equivalently, the following `driver.yaml` file containing a pod spec
 
@@ -96,16 +97,19 @@ kill your workers from the command line.
 ```sh
 kubectl delete pod/example-driver-pod-worker-9001 --grace-period=0 --force=true
 ```
-It may be convenient to set a common label in your worker podspecs, so that you can select them all with `-l='...'` by label, and kill all the worker pods in a single invocation.
+It may be convenient to set a common label in your worker podspecs, so that you can select
+them all with `-l='...'` by label, and kill all the worker pods in a single invocation.
 
-Display info about a pod -- this is especially useful to troubleshoot a pod that is taking longer than expected to get up and running.
+Display info about a pod -- this is especially useful to troubleshoot a pod that is taking
+longer than expected to get up and running.
 ```sh
 kubectl describe pod/example-driver-pod
 ```
 
 ## Troubleshooting
 
-If you get `deserialize` errors during interations between driver and worker processes, make sure you are using the same version of Julia on the driver as on all the workers!
+If you get `deserialize` errors during interations between driver and worker processes, make
+sure you are using the same version of Julia on the driver as on all the workers!
 
 If you aren't sure what went wrong, check the logs! The syntax is
 ```bash
@@ -125,5 +129,6 @@ run with [minikube](https://minikube.sigs.k8s.io/).
 2. If using Docker Desktop: set the resources to a minimum of 3 CPUs and 2.25 GB Memory
 3. [Install minikube](https://minikube.sigs.k8s.io/docs/start/)
 4. Start the Kubernetes cluster: `minikube start`
-5. Use the in-cluster Docker daemon for image builds: `eval $(minikube docker-env)` (Note: only works with single-node clusters)
+5. Use the in-cluster Docker daemon for image builds: `eval $(minikube docker-env)`
+   (Note: only works with single-node clusters)
 6. Run the K8sClusterManagers.jl tests
