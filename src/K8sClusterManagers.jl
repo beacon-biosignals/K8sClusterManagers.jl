@@ -6,7 +6,7 @@ using Kuber
 using Mocking: Mocking, @mock
 using kubectl_jll
 
-export K8sClusterManager
+export K8sClusterManager, isk8s
 
 
 const KUBECTL_PROXY_PROCESS = Ref{Base.Process}()
