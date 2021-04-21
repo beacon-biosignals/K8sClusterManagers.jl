@@ -1,7 +1,7 @@
 # K8sClusterManagers.jl
 
 [![CI](https://github.com/beacon-biosignals/K8sClusterManagers.jl/actions/workflows/CI.yml/badge.svg)](https://github.com/beacon-biosignals/K8sClusterManagers.jl/actions/workflows/CI.yml)
-[![codecov](https://codecov.io/gh/beacon-biosignals/Onda.jl/branch/master/graph/badge.svg?token=D0bcI0Rtsw)](https://codecov.io/gh/beacon-biosignals/Onda.jl)
+[![codecov](https://codecov.io/gh/beacon-biosignals/K8sClusterManagers.jl/branch/master/graph/badge.svg?token=MG8ZO4APDI)](https://codecov.io/gh/beacon-biosignals/K8sClusterManagers.jl)
 [![Docs: stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://beacon-biosignals.github.io/K8sClusterManagers.jl/stable)
 [![Docs: development](https://img.shields.io/badge/docs-dev-blue.svg)](https://beacon-biosignals.github.io/K8sClusterManagers.jl/dev)
 
