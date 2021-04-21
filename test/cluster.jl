@@ -85,8 +85,9 @@ let job_name = "test-success"
             end
             """
 
-        command = ["julia", "-e", escape_yaml_string(code)]
-        config = render(JOB_TEMPLATE; job_name, image=TEST_IMAGE, command)
+        command = ["julia"]
+        args = ["-e", escape_yaml_string(code)]
+        config = render(JOB_TEMPLATE; job_name, image=TEST_IMAGE, command, args)
         kubectl() do exe
             open(`$exe apply --force -f -`, "w", stdout) do p
                 write(p.in, config)
