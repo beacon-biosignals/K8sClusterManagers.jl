@@ -67,3 +67,25 @@ function worker_pod_spec(ctx;
 
     return ko
 end
+
+
+"""
+    isk8s() -> Bool
+
+Predicate for testing if the current process is running within a Kubernetes pod.
+"""
+function isk8s()
+    in_kubepod = false
+    @mock(isfile("/proc/self/cgroup")) || return in_kubepod
+    @mock open("/proc/self/cgroup") do fp
+        while !eof(fp)
+            line = chomp(readline(fp))
+            path_name = split(line, ':')[3]
+            if startswith(path_name, "/kubepods/")
+                in_kubepod = true
+                break
+            end
+        end
+    end
+    return in_kubepod
+end
