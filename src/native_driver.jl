@@ -49,7 +49,7 @@ function K8sClusterManager(np::Integer;
                            memory=DEFAULT_WORKER_MEMORY,
                            retry_seconds::Int=180,
                            configure=identity,
-                           _ctx=kuber_context(namespace))
+                           _ctx=_KuberContext(namespace))
 
     # Default to using the image of the pod if possible
     if image === nothing

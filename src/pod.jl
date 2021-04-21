@@ -7,9 +7,14 @@ const EMPTY_POD =
                              "affinity" => Dict())))
 
 
-function kuber_context(namespace)
+function _KuberContext(namespace="default")
     ctx = KuberContext()
     set_ns(ctx, namespace)
+    return ctx
+end
+
+function _set_api_versions!(ctx::KuberContext)
+    isempty(ctx.apis) && Kuber.set_api_versions!(ctx)
     return ctx
 end
 
@@ -41,10 +46,10 @@ function worker_pod_spec(ctx;
                          cmd::Cmd,
                          driver_name::String,
                          image::String,
-                         cpu::String=DEFAULT_WORKER_CPU,
-                         memory::String=DEFAULT_WORKER_MEMORY,
+                         cpu=DEFAULT_WORKER_CPU,
+                         memory=DEFAULT_WORKER_MEMORY,
                          service_account_name=nothing,
-                         base_obj=kuber_obj(ctx, EMPTY_POD))
+                         base_obj=kuber_obj(_set_api_versions!(ctx), EMPTY_POD))
     ko = base_obj
     ko.metadata.name = "$(driver_name)-worker-$port"
     cmdo = `$cmd --bind-to=0:$port`
