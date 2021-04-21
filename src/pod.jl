@@ -20,7 +20,7 @@ end
 
 
 function get_pod(ctx, pod_name)
-    # The following code is equivalent to calling Kuber's `get(ctx, :Pod, ENV["HOSTNAME"])`
+    # The following code is equivalent to calling Kuber's `get(ctx, :Pod, pod_name)`
     # but reduces noise by avoiding nested rethrow calls.
     # Fixed in Kuber.jl in: https://github.com/JuliaComputing/Kuber.jl/pull/26
     isempty(ctx.apis) && Kuber.set_api_versions!(ctx)
