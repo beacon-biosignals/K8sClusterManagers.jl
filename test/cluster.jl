@@ -35,7 +35,6 @@ if !haskey(ENV, "K8S_CLUSTER_MANAGERS_TEST_IMAGE")
     run(`docker build -t $TEST_IMAGE $PKG_DIR`)
 
     # Alternate build call which works on Apple Silicon
-    # run(`docker build --platform x86_64 -t $TEST_IMAGE $PKG_DIR`)
     # run(pipeline(`docker save $TEST_IMAGE`, `minikube ssh --native-ssh=false -- docker load`))
 end
 
@@ -77,7 +76,7 @@ let job_name = "test-success"
                 ko.spec.containers[1].imagePullPolicy = "Never"
                 return ko
             end
-            K8sClusterManagers.addprocs_pod(1; configure, retry_seconds=60, memory="750M")
+            addprocs(K8sClusterManager(1; configure, retry_seconds=60, memory="750M"))
 
             println("Num Processes: ", nprocs())
             for i in workers()
@@ -120,7 +119,7 @@ let job_name = "test-success"
             @test pod_exists(worker_pod)
 
             @test pod_phase(manager_pod) == "Succeeded"
-            @test_broken pod_phase(worker_pod) == "Succeeded"
+            @test pod_phase(worker_pod) == "Succeeded"
 
             @test length(matches) == 1
             @test matches[1][:worker_id] == "2"

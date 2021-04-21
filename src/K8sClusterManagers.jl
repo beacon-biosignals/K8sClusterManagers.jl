@@ -1,19 +1,13 @@
 module K8sClusterManagers
 
-using Distributed
+using Distributed: Distributed, ClusterManager, WorkerConfig, cluster_cookie
 using JSON
 using Kuber
 using Mocking: Mocking, @mock
 using kubectl_jll
 
-import Distributed: launch, manage, kill
+export K8sClusterManager
 
-worker_arg() = `--worker=$(Distributed.init_multi(); cluster_cookie())`
-
-
-export addprocs_pod
-export K8sNativeManager
-export launch, manage, kill
 
 const KUBECTL_PROXY_PROCESS = Ref{Base.Process}()
 
