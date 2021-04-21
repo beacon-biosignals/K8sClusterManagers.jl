@@ -7,9 +7,8 @@ const EMPTY_POD =
                              "affinity" => Dict())))
 
 
-function kuber_context(namespace=current_namespace())
+function kuber_context(namespace)
     ctx = KuberContext()
-    Kuber.set_api_versions!(ctx; verbose=false)
     set_ns(ctx, namespace)
     return ctx
 end
