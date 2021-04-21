@@ -1,10 +1,12 @@
-const EMPTY_POD =
-    json(Dict("kind" => "Pod",
-              "metadata" => Dict(),
-              "spec" => Dict("restartPolicy" => "Never",
-                             "tolerations" => [],
-                             "containers" => [],
-                             "affinity" => Dict())))
+function rdict(args...)
+    DefaultOrderedDict{String,Any,typeof(rdict)}(rdict, OrderedDict{String,Any}(args...))
+end
+
+const POD_TEMPLATE =
+    rdict("kind" => "Pod",
+          "metadata" => rdict(),
+          "spec" => rdict("restartPolicy" => "Never",
+                          "containers" => []))
 
 
 function _KuberContext(namespace=DEFAULT_NAMESPACE)
@@ -30,35 +32,42 @@ end
 
 
 """
-    worker_pod_spec(ctx; kwargs...)
+    worker_pod_spec(pod=POD_TEMPLATE; kwargs...)
 
-Generate a Kuber object representing pod with a single worker container.
+Generate pod specification representing a Julia worker inside a single container.
 """
-function worker_pod_spec(ctx;
-                         port::Integer,
-                         cmd::Cmd,
-                         driver_name::String,
-                         image::String,
-                         cpu=DEFAULT_WORKER_CPU,
-                         memory=DEFAULT_WORKER_MEMORY,
-                         service_account_name=nothing,
-                         base_obj=kuber_obj(_set_api_versions!(ctx), EMPTY_POD))
-    ko = base_obj
-    ko.metadata.name = "$(driver_name)-worker-$port"
-    cmdo = `$cmd --bind-to=0:$port`
-    push!(ko.spec.containers,
-          json(Dict("name" => "$(driver_name)-worker-$port",
-                    "image" => image,
-                    "command" => collect(cmdo),
-                    "resources" => Dict("requests" => Dict("memory" => memory,
-                                                           "cpu" => cpu)),
-                                        "limit"    => Dict("memory" => memory,
-                                                           "cpu" => cpu))))
+function worker_pod_spec(pod::AbstractDict=POD_TEMPLATE; kwargs...)
+    return worker_pod_spec!(deepcopy(pod); kwargs...)
+end
+
+function worker_pod_spec!(pod::AbstractDict;
+                          port::Integer,
+                          cmd::Cmd,
+                          driver_name::String,
+                          image::String,
+                          cpu=DEFAULT_WORKER_CPU,
+                          memory=DEFAULT_WORKER_MEMORY,
+                          service_account_name=nothing)
+    pod["metadata"]["name"] = "$(driver_name)-worker-$port"
+
+    cmd = `$cmd --bind-to=0:$port`
+
+    worker_container =
+        rdict("name" => "worker",
+              "image" => image,
+              "command" => collect(cmd),
+              "resources" => rdict("requests" => rdict("cpu" => cpu,
+                                                       "memory" => memory),
+                                   "limits"   => rdict("cpu" => cpu,
+                                                       "memory" => memory)))
+
+    push!(pod["spec"]["containers"], worker_container)
+
     if service_account_name !== nothing
-        ko.spec.serviceAccountName = service_account_name
+        pod["spec"]["serviceAccountName"] = service_account_name
     end
 
-    return ko
+    return pod
 end
 
 

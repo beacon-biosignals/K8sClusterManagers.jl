@@ -3,6 +3,7 @@ uuid = "5aeab163-63d2-4171-9fbf-e22244d80acb"
 version = "0.0.2"
 
 [deps]
+DataStructures = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
 Distributed = "8ba89e20-285c-5b6f-9357-94700520ee1b"
 JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
 Kuber = "87e52247-8a1b-5e01-9430-8fbcac83a23a"

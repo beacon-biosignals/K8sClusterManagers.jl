@@ -96,8 +96,7 @@ function wait_for_pod_init(manager::K8sClusterManager, pod)
 end
 
 function worker_pod_spec(manager::K8sClusterManager; kwargs...)
-    pod = worker_pod_spec(manager.ctx;
-                          driver_name=manager.driver_name,
+    pod = worker_pod_spec(; driver_name=manager.driver_name,
                           image=manager.image,
                           cpu=manager.cpu,
                           memory=manager.memory,
@@ -122,7 +121,7 @@ function Distributed.launch(manager::K8sClusterManager, params::Dict, launched::
             worker_pod_spec(manager; port=port, cmd=cmd)
         end
 
-        pod = manager.configure(pod)
+        pod = kuber_obj(manager.ctx, JSON.json(manager.configure(pod)))
 
         start = time()
         try

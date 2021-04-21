@@ -72,9 +72,9 @@ let job_name = "test-success"
             using Distributed, K8sClusterManagers
 
             # Avoid trying to pull local-only image
-            function configure(ko)
-                ko.spec.containers[1].imagePullPolicy = "Never"
-                return ko
+            function configure(pod)
+                pod["spec"]["containers"][1]["imagePullPolicy"] = "Never"
+                return pod
             end
             addprocs(K8sClusterManager(1; configure, retry_seconds=60, memory="750M"))
 
