@@ -1,3 +1,14 @@
+@testset "KubeError" begin
+    msg = "Error from server (NotFound): pods \"localhost\" not found"
+    @test sprint(Base.showerror, KubeError(msg)) == "KubeError: $msg"
+end
+
+@testset "create_pod" begin
+    @testset "non-pod" begin
+        @test_throws ErrorException create_pod(Dict("kind" => "Job"))
+    end
+end
+
 @testset "worker_pod_spec" begin
     kwargs = (; port=8080, cmd=`julia`, driver_name="driver", image="julia")
     pod = K8sClusterManagers.worker_pod_spec(; kwargs...)
