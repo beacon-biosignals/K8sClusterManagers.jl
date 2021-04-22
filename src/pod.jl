@@ -97,6 +97,9 @@ function worker_pod_spec!(pod::AbstractDict;
                           service_account_name=nothing)
     pod["metadata"]["name"] = "$(driver_name)-worker-$port"
 
+    # Set a label with the manager name to support easy termination of all workers
+    pod["metadata"]["labels"]["manager"] = driver_name
+
     cmd = `$cmd --bind-to=0:$port`
 
     worker_container =

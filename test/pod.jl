@@ -16,7 +16,12 @@ end
     @test keys(pod) == Set(["apiVersion", "kind", "metadata", "spec"])
     @test pod["apiVersion"] == "v1"
     @test pod["kind"] == "Pod"
+
+    @test keys(pod["metadata"]) == Set(["name", "labels"])
     @test pod["metadata"]["name"] == "driver-worker-8080"
+    @test keys(pod["metadata"]["labels"]) == Set(["manager"])
+    @test pod["metadata"]["labels"]["manager"] == "driver"
+
     @test pod["spec"]["restartPolicy"] == "Never"
     @test length(pod["spec"]["containers"]) == 1
 
