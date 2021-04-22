@@ -66,6 +66,67 @@ end
 # escape uses of `\` and `"`. It so happens that `escape_string` follows the same rules
 escape_yaml_string(str::AbstractString) = escape_string(str)
 
+randsuffix(len=5) = randstring(['a':'z'; '0':'9'], len)
+
+@testset "pod control" begin
+    driver_name = "test-pod-control-" * randsuffix()
+
+    # Note: We don't need to use the `TEST_IMAGE` here but it avoid having to download
+    # another Docker image.
+    pod_spec = K8sClusterManagers.worker_pod_spec(port=8080, cmd=`julia`, driver_name=driver_name, image=TEST_IMAGE, memory="16M")
+
+    # Overwrite some parts of the specification
+    pod_spec["metadata"]["name"] = driver_name
+    container = pod_spec["spec"]["containers"][1]
+    container["imagePullPolicy"] = "Never"
+    container["command"] = ["sleep"]
+    container["args"] = ["60"]
+
+    name = pod_spec["metadata"]["name"]
+
+    @test_throws KubeError get_pod(name)
+    @test_throws KubeError delete_pod(name)
+
+    @info "Creating pod $name"
+    create_pod(pod_spec)
+
+    @test_throws KubeError create_pod(pod_spec)
+    @test get_pod(name)["status"]["phase"] == "Pending"
+
+    @info "Waiting for pod to start..."
+    while get_pod(name)["status"]["phase"] == "Pending"
+        sleep(1)
+    end
+
+    @test get_pod(name)["status"]["phase"] == "Running"
+
+    # Avoid deleting the pod if we've reached a unhandled phase. This allows for
+    # investigation with `kubectl`.
+    if get_pod(name)["status"]["phase"] == "Running"
+        @info "Deleting pod $name"
+        # Avoid waiting for the pod to be deleted as this can take some time
+        delete_pod(name, wait=false)
+
+        # Note: Ideally we would be able to capture the "Terminating" status as reported by
+        # `kubectl get pods -w`. Unforturnately I'm not sure how to retrieve this
+        # information as it does not seem to be reported by `kubectl get pod` or
+        # `kubectl get events`.
+        reason = nothing
+        while reason === nothing || reason == "Started"
+            reason = kubectl() do exe
+                output = "jsonpath={.items[-1:].reason}"
+                read(`$exe get events --field-selector involvedObject.name=$name -o=$output`, String)
+            end
+        end
+
+        @test reason == "Killing"
+    else
+        @warn "Skipping deletion of pod $name"
+    end
+
+    # TODO: Would be nice to show details of the pod if any of these tests fail
+end
+
 let job_name = "test-success"
     @testset "$job_name" begin
         code = """

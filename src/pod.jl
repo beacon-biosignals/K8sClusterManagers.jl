@@ -65,10 +65,11 @@ end
 
 Delete the pod with the given `name`.
 """
-function delete_pod(name::AbstractString)
+function delete_pod(name::AbstractString; wait::Bool=true)
     err = IOBuffer()
     kubectl() do exe
-        run(pipeline(ignorestatus(`$exe delete pod/$name`), stderr=err))
+        cmd = `$exe delete pod/$name --wait=$wait`
+        run(pipeline(ignorestatus(cmd), stdout=devnull, stderr=err))
     end
 
     err.size > 0 && throw(KubeError(err))

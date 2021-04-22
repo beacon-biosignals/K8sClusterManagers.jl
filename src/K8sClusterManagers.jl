@@ -6,7 +6,7 @@ using JSON: JSON
 using Mocking: Mocking, @mock
 using kubectl_jll
 
-export K8sClusterManager, isk8s
+export K8sClusterManager, KubeError, isk8s
 
 
 function __init__()

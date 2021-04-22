@@ -19,7 +19,8 @@ kubectl_jll = "1.20.0"
 [extras]
 LibGit2 = "76f85450-5226-5b5a-8eaa-529ad045b433"
 Mustache = "ffc61752-8dc7-55ee-8c37-f3e9cdd09e70"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["LibGit2", "Mustache", "Test"]
+test = ["LibGit2", "Mustache", "Random", "Test"]
