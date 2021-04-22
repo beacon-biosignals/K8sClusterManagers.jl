@@ -6,13 +6,11 @@ version = "0.0.2"
 DataStructures = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
 Distributed = "8ba89e20-285c-5b6f-9357-94700520ee1b"
 JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
-Kuber = "87e52247-8a1b-5e01-9430-8fbcac83a23a"
 Mocking = "78c3b35d-d492-501b-9361-3d52fe80e533"
 kubectl_jll = "ed23c2a5-89c4-5d52-b0ca-9d53aadf8c45"
 
 [compat]
 JSON = "0.21"
-Kuber = "0.4.0"
 Mocking = "0.7"
 Mustache = "1"
 Swagger = "0.2"

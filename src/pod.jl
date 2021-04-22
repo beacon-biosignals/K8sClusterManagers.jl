@@ -9,25 +9,28 @@ const POD_TEMPLATE =
                           "containers" => []))
 
 
-function _KuberContext(namespace=DEFAULT_NAMESPACE)
-    ctx = KuberContext()
-    set_ns(ctx, namespace)
-    return ctx
+function get_pod(pod_name::AbstractString)
+    kubectl() do exe
+        JSON.parse(read(`$exe get pod/$pod_name -o json`, String))
+    end
 end
 
-function _set_api_versions!(ctx::KuberContext)
-    isempty(ctx.apis) && Kuber.set_api_versions!(ctx)
-    return ctx
+function create_pod(manifest::AbstractDict)
+    if manifest["kind"] != "Pod"
+        error("Manifest expected to be of kind \"Pod\" and not \"$(manifest["kind"])\"")
+    end
+
+    kubectl() do exe
+        open(`$exe create -f -`, "w", stdout) do p
+            write(p.in, JSON.json(manifest))
+        end
+    end
 end
 
-
-function get_pod(ctx, pod_name)
-    # The following code is equivalent to calling Kuber's `get(ctx, :Pod, pod_name)`
-    # but reduces noise by avoiding nested rethrow calls.
-    # Fixed in Kuber.jl in: https://github.com/JuliaComputing/Kuber.jl/pull/26
-    isempty(ctx.apis) && Kuber.set_api_versions!(ctx)
-    api_ctx = Kuber._get_apictx(ctx, :Pod, nothing)
-    return Kuber.readNamespacedPod(api_ctx, pod_name, ctx.namespace)
+function delete_pod(pod_name::AbstractString)
+    kubectl() do exe
+        run(`$exe delete pod/$pod_name`)
+    end
 end
 
 

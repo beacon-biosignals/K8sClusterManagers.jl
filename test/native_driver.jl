@@ -1,8 +1,7 @@
 @testset "K8sClusterManager" begin
     @testset "pods not found" begin
-        ctx = KuberContext()
         try
-            K8sClusterManager(1; _ctx=ctx)
+            K8sClusterManager(1)
         catch ex
             # Show the original stacktrace if an unexpected error occurred.
             ex isa Swagger.ApiException || rethrow()

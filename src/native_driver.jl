@@ -2,7 +2,6 @@ const DEFAULT_WORKER_CPU = 1
 const DEFAULT_WORKER_MEMORY = "4Gi"
 
 struct K8sClusterManager <: ClusterManager
-    ctx::KuberContext
     ports::Vector{UInt16}
     driver_name::String
     image::String
@@ -48,13 +47,12 @@ function K8sClusterManager(np::Integer;
                            cpu=DEFAULT_WORKER_CPU,
                            memory=DEFAULT_WORKER_MEMORY,
                            retry_seconds::Int=180,
-                           configure=identity,
-                           _ctx=_KuberContext(namespace))
+                           configure=identity)
 
     # Default to using the image of the pod if possible
     if image === nothing
-        pod = get_pod(_ctx, driver_name)
-        images = map(c -> c.image, pod.spec.containers)
+        pod = get_pod(driver_name)
+        images = map(c -> c["image"], pod["spec"]["containers"])
 
         if length(images) == 1
             image = first(images)
@@ -66,7 +64,7 @@ function K8sClusterManager(np::Integer;
     end
 
     ports = 9000 .+ (1:np)
-    return K8sClusterManager(_ctx, ports, driver_name, image, string(cpu), string(memory), retry_seconds, configure)
+    return K8sClusterManager(ports, driver_name, image, string(cpu), string(memory), retry_seconds, configure)
 end
 
 struct TimeoutException <: Exception
@@ -75,24 +73,25 @@ struct TimeoutException <: Exception
 end
 
 function wait_for_pod_init(manager::K8sClusterManager, pod)
+    pod_name = pod["metadata"]["name"]
     status = nothing
     start = time()
     while true
         # try not to overwhelm kubectl proxy; staggered wait
         sleep(1 + rand())
         try
-            status = get(manager.ctx, :Pod, pod.metadata.name).status
-            if status.phase == "Running"
-                @info "$(pod.metadata.name) is up"
+            status = get_pod(pod_name)["status"]
+            if status["phase"] == "Running"
+                @info "$pod_name is up"
                 return status
             end
         catch e
             if time() - start > manager.retry_seconds
-                throw(TimeoutException("timed out after waiting for worker $(pod.metadata.name) to init for $(manager.retry_seconds) seconds, with status\n $status", e))
+                throw(TimeoutException("timed out after waiting for worker $(pod_name) to init for $(manager.retry_seconds) seconds, with status\n $status", e))
             end
         end
     end
-    throw(TimeoutException("timed out after waiting for worker $(pod.metadata.name) to init for $(manager.retry_seconds) seconds, with status\n $status", e))
+    throw(TimeoutException("timed out after waiting for worker $(pod_name) to init for $(manager.retry_seconds) seconds, with status\n $status", e))
 end
 
 function worker_pod_spec(manager::K8sClusterManager; kwargs...)
@@ -121,14 +120,14 @@ function Distributed.launch(manager::K8sClusterManager, params::Dict, launched::
             worker_pod_spec(manager; port=port, cmd=cmd)
         end
 
-        pod = kuber_obj(manager.ctx, JSON.json(manager.configure(pod)))
+        pod = manager.configure(pod)
 
         start = time()
         try
             sleep(rand() * sleeptime)
             while time() - start < manager.retry_seconds
                 try
-                    put!(manager.ctx, pod)
+                    create_pod(pod)
                     break
                 catch e
                     sleep(rand() * sleeptime)
@@ -137,9 +136,9 @@ function Distributed.launch(manager::K8sClusterManager, params::Dict, launched::
             status = wait_for_pod_init(manager, pod)
             sleep(2)
             config = WorkerConfig()
-            config.host = status.podIP
+            config.host = status["podIP"]
             config.port = port
-            config.userdata = (; pod_name=pod.metadata.name)
+            config.userdata = (; pod_name=pod["metadata"]["name"])
             push!(launched, config)
             notify(c)
         catch e
@@ -148,7 +147,7 @@ function Distributed.launch(manager::K8sClusterManager, params::Dict, launched::
             start = time()
             while time() - start < 5
                 try
-                    delete!(manager.ctx, :Pod, pod.metadata.name)
+                    delete_pod(pod["metadata"]["name"])
                     break
                 catch e
                     sleep(rand())
