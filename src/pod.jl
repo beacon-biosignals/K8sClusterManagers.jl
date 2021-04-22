@@ -3,16 +3,29 @@ function rdict(args...)
 end
 
 const POD_TEMPLATE =
-    rdict("kind" => "Pod",
+    rdict("apiVersion" => "v1",
+          "kind" => "Pod",
           "metadata" => rdict(),
           "spec" => rdict("restartPolicy" => "Never",
                           "containers" => []))
 
 
+struct KubeError <: Exception
+    msg::String
+end
+
+KubeError(io::IO) = KubeError(String(take!(io)))
+
+Base.showerror(io::IO, e::KubeError) = print(io, "KubeError: ", e.msg)
+
 function get_pod(pod_name::AbstractString)
-    kubectl() do exe
-        JSON.parse(read(`$exe get pod/$pod_name -o json`, String))
+    err = IOBuffer()
+    out = kubectl() do exe
+        read(pipeline(ignorestatus(`$exe get pod/$pod_name -o json`), stderr=err), String)
     end
+
+    err.size > 0 && throw(KubeError(err))
+    return JSON.parse(out)
 end
 
 function create_pod(manifest::AbstractDict)
@@ -20,17 +33,25 @@ function create_pod(manifest::AbstractDict)
         error("Manifest expected to be of kind \"Pod\" and not \"$(manifest["kind"])\"")
     end
 
+    err = IOBuffer()
     kubectl() do exe
-        open(`$exe create -f -`, "w", stdout) do p
+        open(pipeline(ignorestatus(`$exe create -f -`), stderr=err), "w") do p
             write(p.in, JSON.json(manifest))
         end
     end
+
+    err.size > 0 && throw(KubeError(err))
+    return nothing
 end
 
 function delete_pod(pod_name::AbstractString)
+    err = IOBuffer()
     kubectl() do exe
-        run(`$exe delete pod/$pod_name`)
+        run(pipeline(ignorestatus(`$exe delete pod/$pod_name`), stderr=err))
     end
+
+    err.size > 0 && throw(KubeError(err))
+    return nothing
 end
 
 

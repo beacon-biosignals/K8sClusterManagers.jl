@@ -2,7 +2,8 @@
     kwargs = (; port=8080, cmd=`julia`, driver_name="driver", image="julia")
     pod = K8sClusterManagers.worker_pod_spec(; kwargs...)
 
-    @test keys(pod) == Set(["kind", "metadata", "spec"])
+    @test keys(pod) == Set(["apiVersion", "kind", "metadata", "spec"])
+    @test pod["apiVersion"] == "v1"
     @test pod["kind"] == "Pod"
     @test pod["metadata"]["name"] == "driver-worker-8080"
     @test pod["spec"]["restartPolicy"] == "Never"

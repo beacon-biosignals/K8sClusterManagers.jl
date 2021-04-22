@@ -2,11 +2,9 @@ using Distributed
 using K8sClusterManagers
 using K8sClusterManagers: DEFAULT_NAMESPACE, NAMESPACE_FILE
 using K8sClusterManagers: DEFAULT_WORKER_CPU, DEFAULT_WORKER_MEMORY
-using Kuber: KuberContext
 using LibGit2: LibGit2
 using Mocking: Mocking, @patch, apply
 using Mustache: Mustache, render
-using Swagger: Swagger
 using Test
 using kubectl_jll: kubectl
 
