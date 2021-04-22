@@ -18,17 +18,32 @@ KubeError(io::IO) = KubeError(String(take!(io)))
 
 Base.showerror(io::IO, e::KubeError) = print(io, "KubeError: ", e.msg)
 
-function get_pod(pod_name::AbstractString)
+
+"""
+    get_pod(name::AbstractString) -> AbstractDict
+
+Retrieve details about the specified pod as a JSON-compatible dictionary. If their is no
+pod with the given `name` then a `$KubeError` will be raised.
+"""
+function get_pod(name::AbstractString)
     err = IOBuffer()
     out = kubectl() do exe
-        read(pipeline(ignorestatus(`$exe get pod/$pod_name -o json`), stderr=err), String)
+        read(pipeline(ignorestatus(`$exe get pod/$name -o json`), stderr=err), String)
     end
 
     err.size > 0 && throw(KubeError(err))
-    return JSON.parse(out)
+    return JSON.parse(out; dicttype=OrderedDict)
 end
 
+
+"""
+    create_pod(manifest::AbstractDict) -> Nothing
+
+Create a pod based upon the JSON-compatible `manifest`.
+"""
 function create_pod(manifest::AbstractDict)
+    # As `kubectl create` can create any resource we'll restrict this function to only
+    # creating "Pod" resources.
     if manifest["kind"] != "Pod"
         error("Manifest expected to be of kind \"Pod\" and not \"$(manifest["kind"])\"")
     end
@@ -44,10 +59,16 @@ function create_pod(manifest::AbstractDict)
     return nothing
 end
 
-function delete_pod(pod_name::AbstractString)
+
+"""
+    delete_pod(name::AbstractString) -> Nothing
+
+Delete the pod with the given `name`.
+"""
+function delete_pod(name::AbstractString)
     err = IOBuffer()
     kubectl() do exe
-        run(pipeline(ignorestatus(`$exe delete pod/$pod_name`), stderr=err))
+        run(pipeline(ignorestatus(`$exe delete pod/$name`), stderr=err))
     end
 
     err.size > 0 && throw(KubeError(err))
