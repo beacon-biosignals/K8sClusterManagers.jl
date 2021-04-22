@@ -162,3 +162,7 @@ function Distributed.launch(manager::K8sClusterManager, params::Dict, launched::
         @warn "$(length(erray)) errors with the same type as" exception=(e, backtrace)
     end
 end
+
+function Distributed.manage(manager::K8sClusterManager, id::Integer, config::WorkerConfig, op::Symbol)
+    return nothing
+end

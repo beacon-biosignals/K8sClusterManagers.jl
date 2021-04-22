@@ -125,6 +125,9 @@ let job_name = "test-success"
             @test length(matches) == 1
             @test matches[1][:worker_id] == "2"
             @test matches[1][:pod_name] == worker_pod
+
+            # Ensure there are no unexpected error messages in the log
+            @test !occursin(r"\bError\b"i, manager_log)
         ]
 
         # Display details to assist in debugging the failure
