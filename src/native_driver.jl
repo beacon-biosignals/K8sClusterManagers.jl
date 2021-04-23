@@ -131,6 +131,7 @@ function Distributed.launch(manager::K8sClusterManager, params::Dict, launched::
                     pod_name = create_pod(worker_manifest)
                     break
                 catch e
+                    @error sprint(Base.showerror, e)
                     sleep(rand() * sleeptime)
                 end
             end

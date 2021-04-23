@@ -46,9 +46,8 @@ pod_logs(pod_name) = kubectl(exe -> read(ignorestatus(`$exe logs $pod_name`), St
 # https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-phase
 pod_phase(pod_name) = kubectl(exe -> read(`$exe get pod/$pod_name -o 'jsonpath={.status.phase}'`, String))
 
-function job_pods(job_name, labels::Pair...)
+function pod_names(labels::Pair...)
     selectors = Dict{String,String}(labels)
-    selectors["job-name"] = job_name
     selector = join(map(p -> join(p, '='), collect(pairs(selectors))), ',')
 
     # Adapted from: https://kubernetes.io/docs/concepts/workloads/controllers/job/#running-an-example-job
@@ -158,7 +157,8 @@ let job_name = "test-success"
                 pod["spec"]["containers"][1]["imagePullPolicy"] = "Never"
                 return pod
             end
-            addprocs(K8sClusterManager(1; configure, retry_seconds=60, memory="750M"))
+            addprocs(K8sClusterManager(1; configure, retry_seconds=60, memory="300Mi"))
+            addprocs(K8sClusterManager(1; configure, retry_seconds=60, memory="300Mi"))
 
             println("Num Processes: ", nprocs())
             for i in workers()
@@ -183,14 +183,14 @@ let job_name = "test-success"
         # - Local Docker image does not exist (ErrImageNeverPull)
         @info "Waiting for $job_name job. This could take up to 4 minutes..."
         job_status_subcmd = `get job/$job_name -o 'jsonpath={..status..type}'`
-        result = timedwait(4 * 60; pollint=10) do
+        timedwait(4 * 60; pollint=10) do
             kubectl() do exe
                 !isempty(read(`$exe $job_status_subcmd`, String))
             end
         end
 
-        manager_pod = first(job_pods(job_name))
-        worker_pod = "$manager_pod-worker-9001"
+        manager_pod = first(pod_names("job-name" => job_name))
+        worker_pod = first(pod_names("manager" => manager_pod))
 
         manager_log = pod_logs(manager_pod)
         matches = collect(eachmatch(POD_NAME_REGEX, manager_log))

@@ -104,7 +104,7 @@ function worker_pod_spec!(pod::AbstractDict;
                           cpu=DEFAULT_WORKER_CPU,
                           memory=DEFAULT_WORKER_MEMORY,
                           service_account_name=nothing)
-    pod["metadata"]["name"] = "$(driver_name)-worker-$port"
+    pod["metadata"]["generateName"] = "$(driver_name)-worker-$port"
 
     # Set a label with the manager name to support easy termination of all workers
     pod["metadata"]["labels"]["manager"] = driver_name
