@@ -4,6 +4,7 @@ using DataStructures: DefaultOrderedDict, OrderedDict
 using Distributed: Distributed, ClusterManager, WorkerConfig, cluster_cookie
 using JSON: JSON
 using Mocking: Mocking, @mock
+using Random: rand
 using kubectl_jll
 
 export K8sClusterManager, KubeError, isk8s

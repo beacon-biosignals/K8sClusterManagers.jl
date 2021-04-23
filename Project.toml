@@ -7,6 +7,7 @@ DataStructures = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
 Distributed = "8ba89e20-285c-5b6f-9357-94700520ee1b"
 JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
 Mocking = "78c3b35d-d492-501b-9361-3d52fe80e533"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 kubectl_jll = "ed23c2a5-89c4-5d52-b0ca-9d53aadf8c45"
 
 [compat]
@@ -19,9 +20,8 @@ kubectl_jll = "1.20.0"
 [extras]
 LibGit2 = "76f85450-5226-5b5a-8eaa-529ad045b433"
 Mustache = "ffc61752-8dc7-55ee-8c37-f3e9cdd09e70"
-Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 YAML = "ddb6d928-2868-570f-bddf-ab3f9cf99eb6"
 
 [targets]
-test = ["LibGit2", "Mustache", "Random", "Test", "YAML"]
+test = ["LibGit2", "Mustache", "Test", "YAML"]

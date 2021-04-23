@@ -1,6 +1,9 @@
 const DEFAULT_WORKER_CPU = 1
 const DEFAULT_WORKER_MEMORY = "4Gi"
 
+# https://en.wikipedia.org/wiki/Ephemeral_port#Range
+const EPHEMERAL_PORT_RANGE = 49152:65535
+
 struct K8sClusterManager <: ClusterManager
     ports::Vector{UInt16}
     driver_name::String
@@ -107,16 +110,19 @@ function Distributed.launch(manager::K8sClusterManager, params::Dict, launched::
     exename = params[:exename]
     exeflags = params[:exeflags]
 
-    cmd = `$exename $exeflags --worker=$(cluster_cookie())`
+    # Currently the mananger defines what port the workers should listen to. At the moment
+    # we use the same port number for all worker but this isn't required.
+    port = rand(EPHEMERAL_PORT_RANGE)
+    cmd = `$exename $exeflags --worker=$(cluster_cookie()) --bind-to=0:$port`
 
     errors = Dict()
     # try not to overwhelm kubectl proxy; wait longer if more workers requested
     sleeptime = 0.1 * sqrt(length(manager.ports))
-    asyncmap(manager.ports) do port
+    asyncmap(manager.ports) do _
         worker_manifest = @static if VERSION >= v"1.5"
-            worker_pod_spec(manager; port, cmd)
+            worker_pod_spec(manager; cmd)
         else
-            worker_pod_spec(manager; port=port, cmd=cmd)
+            worker_pod_spec(manager; cmd=cmd)
         end
 
         # Note: User-defined `configure` function may or may-not be mutating
