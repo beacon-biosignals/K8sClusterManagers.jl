@@ -191,8 +191,10 @@ let job_name = "test-multi-addprocs"
                 pod["spec"]["containers"][1]["imagePullPolicy"] = "Never"
                 return pod
             end
-            addprocs(K8sClusterManager(1; configure, retry_seconds=60, memory="300Mi"))
-            addprocs(K8sClusterManager(1; configure, retry_seconds=60, memory="300Mi"))
+
+            mgr = K8sClusterManager(1; configure, retry_seconds=60, cpu="0.5", memory="300Mi")
+            addprocs(mgr)
+            addprocs(mgr)
 
             println("Num Processes: ", nprocs())
             for i in workers()
@@ -237,7 +239,9 @@ let job_name = "test-multi-addprocs"
 
         # Display details to assist in debugging the failure
         if any(r -> !(r isa Test.Pass || r isa Test.Broken), test_results)
-            report(job_name, "manager" => manager_pod, map(w -> "worker" => w, worker_pods)...)
+            n = length(workers)
+            worker_pairs = map((i, w) -> "worker $i/$n", enumerate(worker_pods))
+            report(job_name, "manager" => manager_pod, worker_pairs...)
         end
     end
 end
