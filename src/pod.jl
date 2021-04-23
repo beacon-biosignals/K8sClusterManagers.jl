@@ -1,64 +1,120 @@
-const EMPTY_POD =
-    json(Dict("kind" => "Pod",
-              "metadata" => Dict(),
-              "spec" => Dict("restartPolicy" => "Never",
-                             "tolerations" => [],
-                             "containers" => [],
-                             "affinity" => Dict())))
-
-
-function _KuberContext(namespace=DEFAULT_NAMESPACE)
-    ctx = KuberContext()
-    set_ns(ctx, namespace)
-    return ctx
+function rdict(args...)
+    DefaultOrderedDict{String,Any,typeof(rdict)}(rdict, OrderedDict{String,Any}(args...))
 end
 
-function _set_api_versions!(ctx::KuberContext)
-    isempty(ctx.apis) && Kuber.set_api_versions!(ctx)
-    return ctx
-end
+const POD_TEMPLATE =
+    rdict("apiVersion" => "v1",
+          "kind" => "Pod",
+          "metadata" => rdict(),
+          "spec" => rdict("restartPolicy" => "Never",
+                          "containers" => []))
 
 
-function get_pod(ctx, pod_name)
-    # The following code is equivalent to calling Kuber's `get(ctx, :Pod, pod_name)`
-    # but reduces noise by avoiding nested rethrow calls.
-    # Fixed in Kuber.jl in: https://github.com/JuliaComputing/Kuber.jl/pull/26
-    isempty(ctx.apis) && Kuber.set_api_versions!(ctx)
-    api_ctx = Kuber._get_apictx(ctx, :Pod, nothing)
-    return Kuber.readNamespacedPod(api_ctx, pod_name, ctx.namespace)
+struct KubeError <: Exception
+    msg::String
 end
+
+KubeError(io::IO) = KubeError(String(take!(io)))
+
+Base.showerror(io::IO, e::KubeError) = print(io, "KubeError: ", e.msg)
 
 
 """
-    worker_pod_spec(ctx; kwargs...)
+    get_pod(name::AbstractString) -> AbstractDict
 
-Generate a Kuber object representing pod with a single worker container.
+Retrieve details about the specified pod as a JSON-compatible dictionary. If their is no
+pod with the given `name` then a `$KubeError` will be raised.
 """
-function worker_pod_spec(ctx;
-                         port::Integer,
-                         cmd::Cmd,
-                         driver_name::String,
-                         image::String,
-                         cpu=DEFAULT_WORKER_CPU,
-                         memory=DEFAULT_WORKER_MEMORY,
-                         service_account_name=nothing,
-                         base_obj=kuber_obj(_set_api_versions!(ctx), EMPTY_POD))
-    ko = base_obj
-    ko.metadata.name = "$(driver_name)-worker-$port"
-    cmdo = `$cmd --bind-to=0:$port`
-    push!(ko.spec.containers,
-          json(Dict("name" => "$(driver_name)-worker-$port",
-                    "image" => image,
-                    "command" => collect(cmdo),
-                    "resources" => Dict("requests" => Dict("memory" => memory,
-                                                           "cpu" => cpu)),
-                                        "limit"    => Dict("memory" => memory,
-                                                           "cpu" => cpu))))
-    if service_account_name !== nothing
-        ko.spec.serviceAccountName = service_account_name
+function get_pod(name::AbstractString)
+    err = IOBuffer()
+    out = kubectl() do exe
+        read(pipeline(ignorestatus(`$exe get pod/$name -o json`), stderr=err), String)
     end
 
-    return ko
+    err.size > 0 && throw(KubeError(err))
+    return JSON.parse(out; dicttype=OrderedDict)
+end
+
+
+"""
+    create_pod(manifest::AbstractDict) -> Nothing
+
+Create a pod based upon the JSON-compatible `manifest`.
+"""
+function create_pod(manifest::AbstractDict)
+    # As `kubectl create` can create any resource we'll restrict this function to only
+    # creating "Pod" resources.
+    kind = manifest["kind"]
+    if kind != "Pod"
+        throw(ArgumentError("Manifest expected to be of kind \"Pod\" and not \"$kind\""))
+    end
+
+    err = IOBuffer()
+    kubectl() do exe
+        open(pipeline(ignorestatus(`$exe create -f -`), stderr=err), "w") do p
+            write(p.in, JSON.json(manifest))
+        end
+    end
+
+    err.size > 0 && throw(KubeError(err))
+    return nothing
+end
+
+
+"""
+    delete_pod(name::AbstractString) -> Nothing
+
+Delete the pod with the given `name`.
+"""
+function delete_pod(name::AbstractString; wait::Bool=true)
+    err = IOBuffer()
+    kubectl() do exe
+        cmd = `$exe delete pod/$name --wait=$wait`
+        run(pipeline(ignorestatus(cmd), stdout=devnull, stderr=err))
+    end
+
+    err.size > 0 && throw(KubeError(err))
+    return nothing
+end
+
+
+"""
+    worker_pod_spec(pod=POD_TEMPLATE; kwargs...)
+
+Generate a pod specification for a Julia worker inside a container.
+"""
+function worker_pod_spec(pod::AbstractDict=POD_TEMPLATE; kwargs...)
+    return worker_pod_spec!(deepcopy(pod); kwargs...)
+end
+
+function worker_pod_spec!(pod::AbstractDict;
+                          port::Integer,
+                          cmd::Cmd,
+                          driver_name::String,
+                          image::String,
+                          cpu=DEFAULT_WORKER_CPU,
+                          memory=DEFAULT_WORKER_MEMORY,
+                          service_account_name=nothing)
+    pod["metadata"]["name"] = "$(driver_name)-worker-$port"
+
+    cmd = `$cmd --bind-to=0:$port`
+
+    worker_container =
+        rdict("name" => "worker",
+              "image" => image,
+              "command" => collect(cmd),
+              "resources" => rdict("requests" => rdict("cpu" => cpu,
+                                                       "memory" => memory),
+                                   "limits"   => rdict("cpu" => cpu,
+                                                       "memory" => memory)))
+
+    push!(pod["spec"]["containers"], worker_container)
+
+    if service_account_name !== nothing
+        pod["spec"]["serviceAccountName"] = service_account_name
+    end
+
+    return pod
 end
 
 

@@ -62,11 +62,9 @@ type. `Kuber.jl` makes it convenient to manipulate this `pod`, by letting you do
 as:
 
 ```julia
-function my_configurator(pod)
-    push!(pod.spec.tolerations,
-          Dict("key" => "gpu",
-               "operator" => "Equal",
-               "value" => "true"))
+function my_gpu_configurator(pod)
+    worker_container = pod["spec"]["containers"][1]
+    worker_container["resources"]["limits"]["nvidia.com/gpu"] = 1
     return pod
 end
 ```
@@ -74,8 +72,9 @@ end
 To get an example instance of `pod` that might be passed into the `configure`, call
 
 ```julia
-using K8sClusterManagers, Kuber
-pod = K8sClusterManagers.worker_pod_spec(KuberContext(), port=0, cmd=`julia`, driver_name="driver", image="julia")
+using K8sClusterManagers, JSON
+pod = K8sClusterManagers.worker_pod_spec(port=8080, cmd=`julia`, driver_name="driver", image="julia")
+JSON.print(pod, 4)
 ```
 
 
