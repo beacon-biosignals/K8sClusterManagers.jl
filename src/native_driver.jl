@@ -5,7 +5,7 @@ const DEFAULT_WORKER_MEMORY = "4Gi"
 const EPHEMERAL_PORT_RANGE = 49152:65535
 
 struct K8sClusterManager <: ClusterManager
-    ports::Vector{UInt16}
+    np::Int
     driver_name::String
     image::String
     cpu::String
@@ -66,8 +66,7 @@ function K8sClusterManager(np::Integer;
         end
     end
 
-    ports = 9000 .+ (1:np)
-    return K8sClusterManager(ports, driver_name, image, string(cpu), string(memory), retry_seconds, configure)
+    return K8sClusterManager(np, driver_name, image, string(cpu), string(memory), retry_seconds, configure)
 end
 
 struct TimeoutException <: Exception
@@ -117,8 +116,8 @@ function Distributed.launch(manager::K8sClusterManager, params::Dict, launched::
 
     errors = Dict()
     # try not to overwhelm kubectl proxy; wait longer if more workers requested
-    sleeptime = 0.1 * sqrt(length(manager.ports))
-    asyncmap(manager.ports) do _
+    sleeptime = 0.1 * sqrt(manager.np)
+    asyncmap(1:manager.np) do i
         worker_manifest = @static if VERSION >= v"1.5"
             worker_pod_spec(manager; cmd)
         else
