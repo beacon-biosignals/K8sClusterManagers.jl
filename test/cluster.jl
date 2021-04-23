@@ -38,35 +38,6 @@ if !haskey(ENV, "K8S_CLUSTER_MANAGERS_TEST_IMAGE")
     # run(pipeline(`docker save $TEST_IMAGE`, `minikube ssh --native-ssh=false -- docker load`))
 end
 
-pod_exists(pod_name) = kubectl(exe -> success(`$exe get pod/$pod_name`))
-
-# Will fail if called and the job is in state "Waiting"
-pod_logs(pod_name) = kubectl(exe -> read(ignorestatus(`$exe logs $pod_name`), String))
-
-# https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-phase
-pod_phase(pod_name) = kubectl(exe -> read(`$exe get pod/$pod_name -o 'jsonpath={.status.phase}'`, String))
-
-function job_pods(job_name, labels::Pair...)
-    selectors = Dict{String,String}(labels)
-    selectors["job-name"] = job_name
-    selector = join(map(p -> join(p, '='), collect(pairs(selectors))), ',')
-
-    # Adapted from: https://kubernetes.io/docs/concepts/workloads/controllers/job/#running-an-example-job
-    jsonpath = "{range .items[*]}{.metadata.name}{\"\\n\"}{end}"
-    output = kubectl() do exe
-        read(`$exe get pods -l $selector -o=jsonpath=$jsonpath`, String)
-    end
-    return split(output, '\n')
-end
-
-# Use the double-quoted flow scalar style to allow us to have a YAML string which includes
-# newlines without being aware of YAML indentation (block styles)
-#
-# The double-quoted style allows us to use escape sequences via `\` but requires us to
-# escape uses of `\` and `"`. It so happens that `escape_string` follows the same rules
-escape_yaml_string(str::AbstractString) = escape_string(str)
-
-randsuffix(len=5) = randstring(['a':'z'; '0':'9'], len)
 
 @testset "pod control" begin
     pod_control_manifest = YAML.load_file(joinpath(@__DIR__, "pod-control.yaml"))
@@ -169,12 +140,8 @@ let job_name = "test-success"
 
         command = ["julia"]
         args = ["-e", escape_yaml_string(code)]
-        config = render(JOB_TEMPLATE; job_name, image=TEST_IMAGE, command, args)
-        kubectl() do exe
-            open(`$exe apply --force -f -`, "w", stdout) do p
-                write(p.in, config)
-            end
-        end
+        manifest = render(JOB_TEMPLATE; job_name, image=TEST_IMAGE, command, args)
+        k8s_create(IOBuffer(manifest))
 
         # Wait for job to reach status: "Complete" or "Failed".
         #
@@ -182,21 +149,16 @@ let job_name = "test-success"
         # - Insufficient cluster resources (pod stuck in the "Pending" status)
         # - Local Docker image does not exist (ErrImageNeverPull)
         @info "Waiting for $job_name job. This could take up to 4 minutes..."
-        job_status_subcmd = `get job/$job_name -o 'jsonpath={..status..type}'`
-        result = timedwait(4 * 60; pollint=10) do
-            kubectl() do exe
-                !isempty(read(`$exe $job_status_subcmd`, String))
-            end
-        end
+        wait_job(job_name, condition=!isempty, timeout=4 * 60)
 
-        manager_pod = first(job_pods(job_name))
+        manager_pod = first(pod_names("job-name" => job_name))
         worker_pod = "$manager_pod-worker-9001"
 
         manager_log = pod_logs(manager_pod)
         matches = collect(eachmatch(POD_NAME_REGEX, manager_log))
 
         test_results = [
-            @test kubectl(exe -> read(`$exe $job_status_subcmd`, String)) == "Complete"
+            @test get_job(job_name, jsonpath="{.status..type}") == "Complete"
 
             @test pod_exists(manager_pod)
             @test pod_exists(worker_pod)
@@ -214,47 +176,7 @@ let job_name = "test-success"
 
         # Display details to assist in debugging the failure
         if any(r -> !(r isa Test.Pass || r isa Test.Broken), test_results)
-            kubectl() do exe
-                cmd = `$exe describe job/$job_name`
-                @info "Describe job:\n" * read(ignorestatus(cmd), String)
-            end
-
-            # Note: A job doesn't contain a direct reference to the pod it starts so
-            # re-using the job name can result in us identifying the wrong manager pod.
-            kubectl() do exe
-                cmd = `$exe get pods -L job-name=$job_name`
-                @info "List pods:\n" * read(ignorestatus(cmd), String)
-            end
-
-            if pod_exists(manager_pod)
-                kubectl() do exe
-                    cmd = `$exe describe pod/$manager_pod`
-                    @info "Describe manager pod:\n" * read(cmd, String)
-                end
-            else
-                @info "Manager pod \"$manager_pod\" not found"
-            end
-
-            if pod_exists(worker_pod)
-                kubectl() do exe
-                    cmd = `$exe describe pod/$worker_pod`
-                    @info "Describe worker pod:\n" * read(cmd, String)
-                end
-            else
-                @info "Worker pod \"$worker_pod\" not found"
-            end
-
-            if pod_exists(manager_pod)
-                @info "Logs for manager ($manager_pod):\n" * pod_logs(manager_pod)
-            else
-                @info "No logs for manager ($manager_pod)"
-            end
-
-            if pod_exists(worker_pod)
-                @info "Logs for worker ($worker_pod):\n" * pod_logs(worker_pod)
-            else
-                @info "No logs for worker ($worker_pod)"
-            end
+            report(job_name, "manager" => manager_pod, "worker" => worker_pod)
         end
     end
 end

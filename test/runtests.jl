@@ -13,6 +13,8 @@ using kubectl_jll: kubectl
 
 Mocking.activate()
 
+include("utils.jl")
+
 @testset "K8sClusterManagers" begin
     include("namespace.jl")
     include("pod.jl")
