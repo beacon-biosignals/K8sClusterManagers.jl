@@ -5,7 +5,7 @@ end
 
 @testset "create_pod" begin
     @testset "non-pod" begin
-        @test_throws ErrorException create_pod(Dict("kind" => "Job"))
+        @test_throws ArgumentError create_pod(Dict("kind" => "Job"))
     end
 end
 

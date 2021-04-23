@@ -44,8 +44,9 @@ Create a pod based upon the JSON-compatible `manifest`.
 function create_pod(manifest::AbstractDict)
     # As `kubectl create` can create any resource we'll restrict this function to only
     # creating "Pod" resources.
-    if manifest["kind"] != "Pod"
-        error("Manifest expected to be of kind \"Pod\" and not \"$(manifest["kind"])\"")
+    kind = manifest["kind"]
+    if kind != "Pod"
+        throw(ArgumentError("Manifest expected to be of kind \"Pod\" and not \"$kind\""))
     end
 
     err = IOBuffer()
@@ -80,7 +81,7 @@ end
 """
     worker_pod_spec(pod=POD_TEMPLATE; kwargs...)
 
-Generate pod specification representing a Julia worker inside a single container.
+Generate a pod specification for a Julia worker inside a container.
 """
 function worker_pod_spec(pod::AbstractDict=POD_TEMPLATE; kwargs...)
     return worker_pod_spec!(deepcopy(pod); kwargs...)

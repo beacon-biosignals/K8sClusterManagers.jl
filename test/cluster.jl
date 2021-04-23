@@ -73,7 +73,8 @@ randsuffix(len=5) = randstring(['a':'z'; '0':'9'], len)
 
     # Note: We don't need to use the `TEST_IMAGE` here but it avoid having to download
     # another Docker image.
-    pod_spec = K8sClusterManagers.worker_pod_spec(port=8080, cmd=`julia`, driver_name=driver_name, image=TEST_IMAGE, memory="16M")
+    kwargs = (; port=8080, cmd=`julia`, driver_name, image=TEST_IMAGE, memory="16M")
+    pod_spec = K8sClusterManagers.worker_pod_spec(; kwargs...)
 
     # Overwrite some parts of the specification
     pod_spec["metadata"]["name"] = driver_name

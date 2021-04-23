@@ -63,8 +63,8 @@ as:
 
 ```julia
 function my_gpu_configurator(pod)
-    manager_container = pod["spec"]["containers"][1]
-    manager_container["resources"]["limits"]["nvidia.com/gpu"] = 1
+    worker_container = pod["spec"]["containers"][1]
+    worker_container["resources"]["limits"]["nvidia.com/gpu"] = 1
     return pod
 end
 ```
