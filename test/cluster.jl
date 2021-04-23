@@ -150,9 +150,7 @@ let job_name = "test-success"
         # - Insufficient cluster resources (pod stuck in the "Pending" status)
         # - Local Docker image does not exist (ErrImageNeverPull)
         @info "Waiting for $job_name job. This could take up to 4 minutes..."
-        timedwait(4 * 60; pollint=10) do
-            !isempty(get_job("test-success", jsonpath="{.status..type}"))
-        end
+        wait_job(job_name, condition=!isempty, timeout=4 * 60)
 
         manager_pod = first(pod_names("job-name" => job_name))
         worker_pod = first(pod_names("manager" => manager_pod))
@@ -161,7 +159,7 @@ let job_name = "test-success"
         matches = collect(eachmatch(POD_NAME_REGEX, manager_log))
 
         test_results = [
-            @test get_job("test-success", jsonpath="{.status..type}") == "Complete"
+            @test get_job(job_name, jsonpath="{.status..type}") == "Complete"
 
             @test pod_exists(manager_pod)
             @test pod_exists(worker_pod)

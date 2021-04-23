@@ -24,6 +24,12 @@ function get_job(name::AbstractString; jsonpath=nothing)
     return output == "json" ? JSON.parse(out; dicttype=OrderedDict) : out
 end
 
+function wait_job(job_name; condition=!isempty, timeout=60)
+    timedwait(timeout; pollint=10) do
+        condition(get_job(job_name, jsonpath="{.status..type}"))
+    end
+end
+
 pod_exists(pod_name) = kubectl(exe -> success(`$exe get pod/$pod_name`))
 
 # Will fail if called and the job is in state "Waiting"
@@ -39,9 +45,9 @@ function pod_names(labels::Pair...)
     # Adapted from: https://kubernetes.io/docs/concepts/workloads/controllers/job/#running-an-example-job
     jsonpath = "{range .items[*]}{.metadata.name}{\"\\n\"}{end}"
     output = kubectl() do exe
-        read(`$exe get pods -l $selector -o=jsonpath=$jsonpath`, String)
+        readchomp(`$exe get pods -l $selector -o=jsonpath=$jsonpath`)
     end
-    return split(output, '\n')
+    return !isempty(output) ? split(output, '\n') : String[]
 end
 
 # Use the double-quoted flow scalar style to allow us to have a YAML string which includes
