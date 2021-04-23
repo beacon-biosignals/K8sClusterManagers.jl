@@ -37,9 +37,9 @@ end
 
 
 """
-    create_pod(manifest::AbstractDict) -> Nothing
+    create_pod(manifest::AbstractDict) -> String
 
-Create a pod based upon the JSON-compatible `manifest`.
+Create a pod based upon the JSON-compatible `manifest`. Returns the name of the pod created.
 """
 function create_pod(manifest::AbstractDict)
     # As `kubectl create` can create any resource we'll restrict this function to only
@@ -49,15 +49,24 @@ function create_pod(manifest::AbstractDict)
         throw(ArgumentError("Manifest expected to be of kind \"Pod\" and not \"$kind\""))
     end
 
+    out = IOBuffer()
     err = IOBuffer()
     kubectl() do exe
-        open(pipeline(ignorestatus(`$exe create -f -`), stderr=err), "w") do p
+        open(pipeline(ignorestatus(`$exe create -f -`), stdout=out, stderr=err), "w") do p
             write(p.in, JSON.json(manifest))
         end
     end
 
     err.size > 0 && throw(KubeError(err))
-    return nothing
+
+    # Extract the pod name from the output. Needed when using "generateName".
+    out_str = String(take!(out))
+    m = match(r"pod/(?<name>.*?) created", out_str)
+    if m !== nothing
+        return m[:name]
+    else
+        error("Unable to determine the pod name from: \"$out_str\"")
+    end
 end
 
 
