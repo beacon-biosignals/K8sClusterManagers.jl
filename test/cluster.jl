@@ -130,7 +130,6 @@ let job_name = "test-success"
                 return pod
             end
             addprocs(K8sClusterManager(1; configure, retry_seconds=60, memory="300Mi"))
-            addprocs(K8sClusterManager(1; configure, retry_seconds=60, memory="300Mi"))
 
             println("Num Processes: ", nprocs())
             for i in workers()
@@ -178,6 +177,67 @@ let job_name = "test-success"
         # Display details to assist in debugging the failure
         if any(r -> !(r isa Test.Pass || r isa Test.Broken), test_results)
             report(job_name, "manager" => manager_pod, "worker" => worker_pod)
+        end
+    end
+end
+
+let job_name = "test-multi-addprocs"
+    @testset "$job_name" begin
+        code = """
+            using Distributed, K8sClusterManagers
+
+            # Avoid trying to pull local-only image
+            function configure(pod)
+                pod["spec"]["containers"][1]["imagePullPolicy"] = "Never"
+                return pod
+            end
+            addprocs(K8sClusterManager(1; configure, retry_seconds=60, memory="300Mi"))
+            addprocs(K8sClusterManager(1; configure, retry_seconds=60, memory="300Mi"))
+
+            println("Num Processes: ", nprocs())
+            for i in workers()
+                # Return the name of the pod via HOSTNAME
+                println("Worker pod \$i: ", remotecall_fetch(() -> ENV["HOSTNAME"], i))
+            end
+            """
+
+        command = ["julia"]
+        args = ["-e", escape_yaml_string(code)]
+        manifest = render(JOB_TEMPLATE; job_name, image=TEST_IMAGE, command, args)
+        k8s_create(IOBuffer(manifest))
+
+        # Wait for job to reach status: "Complete" or "Failed".
+        @info "Waiting for $job_name job. This could take up to 4 minutes..."
+        wait_job(job_name, condition=!isempty, timeout=4 * 60)
+
+        manager_pod = first(pod_names("job-name" => job_name))
+        worker_pods = pod_names("manager" => manager_pod)
+
+        manager_log = pod_logs(manager_pod)
+        reported_workers = map(m -> m[:pod_name], eachmatch(POD_NAME_REGEX, manager_log))
+
+        test_results = [
+            @test get_job(job_name, jsonpath="{.status..type}") == "Complete"
+
+            @test pod_exists(manager_pod)
+            @test length(worker_pods) == 2
+            @test pod_exists(worker_pods[1])
+            @test pod_exists(worker_pods[2])
+
+            @test pod_phase(manager_pod) == "Succeeded"
+            @test pod_phase(worker_pods[1]) == "Succeeded"
+            @test pod_phase(worker_pods[2]) == "Succeeded"
+
+            @test length(reported_workers) == length(worker_pods)
+            @test Set(reported_workers) == Set(worker_pods)
+
+            # Ensure there are no unexpected error messages in the log
+            @test !occursin(r"\bError\b"i, manager_log)
+        ]
+
+        # Display details to assist in debugging the failure
+        if any(r -> !(r isa Test.Pass || r isa Test.Broken), test_results)
+            report(job_name, "manager" => manager_pod, map(w -> "worker" => w, worker_pods)...)
         end
     end
 end
