@@ -91,12 +91,11 @@ jobs:
       # - minikube "docker" driver requires local-only images to present on the node where
       #   it is used (all nodes in practice)
       - name: Set up minikube
-        uses: manusa/actions-setup-minikube@v2.3.1
+        uses: manusa/actions-setup-minikube@v2.4.0
         with:
           minikube version: v1.19.0
           kubernetes version: v1.20.5
           driver: docker
-          # Undocumented argument: https://github.com/manusa/actions-setup-minikube/issues/41
           start args: --nodes=2 --cni=kindnet
 
       # To use a Docker image in the cluster it must first be made available to the cluster
@@ -109,8 +108,6 @@ jobs:
         run: |
           for node in $(minikube node list | cut -f1); do
               echo "Transfering image to node $node..."
-              # Default permissions too open: https://github.com/manusa/actions-setup-minikube/issues/40
-              chmod 600 $MINIKUBE_HOME/.minikube/machines/$node/id_rsa
               docker save $K8S_CLUSTER_MANAGERS_TEST_IMAGE | minikube ssh --node $node --native-ssh=false -- docker load
           done
 
