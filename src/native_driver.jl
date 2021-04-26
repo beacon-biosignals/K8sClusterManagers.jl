@@ -114,33 +114,20 @@ function Distributed.launch(manager::K8sClusterManager, params::Dict, launched::
     # required.
     cmd = `$exename $exeflags --worker=$(cluster_cookie()) --bind-to=0:$WORKER_PORT`
 
-    errors = Dict()
-    # try not to overwhelm kubectl proxy; wait longer if more workers requested
-    sleeptime = 0.1 * sqrt(manager.np)
+    worker_manifest = worker_pod_spec(manager; cmd=cmd)
+
+    # Note: User-defined `configure` function may or may-not be mutating
+    worker_manifest = manager.configure(worker_manifest)
+
     asyncmap(1:manager.np) do i
-        worker_manifest = @static if VERSION >= v"1.5"
-            worker_pod_spec(manager; cmd)
-        else
-            worker_pod_spec(manager; cmd=cmd)
-        end
-
-        # Note: User-defined `configure` function may or may-not be mutating
-        worker_manifest = manager.configure(worker_manifest)
-
         pod_name = nothing
         start = time()
         try
-            sleep(rand() * sleeptime)
-            while time() - start < manager.retry_seconds
-                try
-                    pod_name = create_pod(worker_manifest)
-                    break
-                catch e
-                    sleep(rand() * sleeptime)
-                end
-            end
+            pod_name = create_pod(worker_manifest)
             status = wait_for_pod_init(manager, pod_name)
+
             sleep(2)
+
             config = WorkerConfig()
             config.host = status["podIP"]
             config.port = WORKER_PORT
@@ -148,22 +135,9 @@ function Distributed.launch(manager::K8sClusterManager, params::Dict, launched::
             push!(launched, config)
             notify(c)
         catch e
-            @error "error launching job on port $port, deleting pod and skipping!"
-            push!(get!(() -> [], errors, typeof(e)), (e, catch_backtrace()))
-            start = time()
-            while time() - start < 5
-                try
-                    delete_pod(pod_name)
-                    break
-                catch e
-                    sleep(rand())
-                end
-            end
+            delete_pod(pod_name; wait=false)
+            rethrow()
         end
-    end
-    for erray in values(errors)
-        e, backtrace = first(erray)
-        @warn "$(length(erray)) errors with the same type as" exception=(e, backtrace)
     end
 end
 
