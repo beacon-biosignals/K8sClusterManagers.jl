@@ -116,7 +116,7 @@ function Distributed.launch(manager::K8sClusterManager, params::Dict, launched::
             # expected port. If we don't wait long enough we will see a "connection refused"
             # error (https://github.com/beacon-biosignals/K8sClusterManagers.jl/issues/46)
             @info "$pod_name is up"
-            sleep(2)
+            sleep(4)
 
             config = WorkerConfig()
             config.host = pod["status"]["podIP"]
