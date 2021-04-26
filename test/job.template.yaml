@@ -6,7 +6,7 @@ metadata:
 rules:
 - apiGroups: [""]  # "" indicates the core API group
   resources: ["pods"]
-  verbs: ["create", "get"]
+  verbs: ["create", "get", "patch"]
 
 ---
 # https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/

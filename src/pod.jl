@@ -71,6 +71,23 @@ end
 
 
 """
+    label_pod(name::AbstractString, label::Pair) -> Nothing
+
+Create or replace a metadata label for a given pod `name`. Requires the "patch" permission.
+"""
+function label_pod(name::AbstractString, label::Pair)
+    err = IOBuffer()
+    out = kubectl() do exe
+        cmd = `$exe label --overwrite pod/$name $(join(label, '='))`
+        run(pipeline(ignorestatus(cmd), stdout=devnull, stderr=err))
+    end
+
+    err.size > 0 && throw(KubeError(err))
+    return nothing
+end
+
+
+"""
     delete_pod(name::AbstractString) -> Nothing
 
 Delete the pod with the given `name`.

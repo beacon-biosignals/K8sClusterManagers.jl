@@ -129,5 +129,9 @@ function Distributed.launch(manager::K8sClusterManager, params::Dict, launched::
 end
 
 function Distributed.manage(manager::K8sClusterManager, id::Integer, config::WorkerConfig, op::Symbol)
-    return nothing
+    pod_name = config.userdata.pod_name
+
+    if op === :register
+        label_pod(pod_name, "worker-id" => id)
+    end
 end
