@@ -97,24 +97,26 @@ function Distributed.launch(manager::K8sClusterManager, params::Dict, launched::
     # Note: User-defined `configure` function may or may-not be mutating
     worker_manifest = manager.configure(worker_manifest)
 
-    asyncmap(1:manager.np) do i
-        pod_name = nothing
-        try
+    @sync for i in 1:manager.np
+        @async begin
             pod_name = create_pod(worker_manifest)
-            status = wait_for_running_pod(pod_name; timeout=manager.retry_seconds)
-            @info "$pod_name is up"
 
-            sleep(2)
+            try
+                status = wait_for_running_pod(pod_name; timeout=manager.retry_seconds)
+                @info "$pod_name is up"
 
-            config = WorkerConfig()
-            config.host = status["podIP"]
-            config.port = WORKER_PORT
-            config.userdata = (; pod_name=pod_name)
-            push!(launched, config)
-            notify(c)
-        catch e
-            delete_pod(pod_name; wait=false)
-            rethrow()
+                sleep(2)
+
+                config = WorkerConfig()
+                config.host = status["podIP"]
+                config.port = WORKER_PORT
+                config.userdata = (; pod_name=pod_name)
+                push!(launched, config)
+                notify(c)
+            catch e
+                delete_pod(pod_name; wait=false)
+                rethrow()
+            end
         end
     end
 end
