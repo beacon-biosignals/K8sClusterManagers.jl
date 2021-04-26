@@ -72,28 +72,6 @@ end
 
 struct TimeoutException <: Exception
     msg::String
-    cause::Exception
-end
-
-function wait_for_pod_init(manager::K8sClusterManager, pod_name::AbstractString)
-    status = nothing
-    start = time()
-    while true
-        # try not to overwhelm kubectl proxy; staggered wait
-        sleep(1 + rand())
-        try
-            status = get_pod(pod_name)["status"]
-            if status["phase"] == "Running"
-                @info "$pod_name is up"
-                return status
-            end
-        catch e
-            if time() - start > manager.retry_seconds
-                throw(TimeoutException("timed out after waiting for worker $(pod_name) to init for $(manager.retry_seconds) seconds, with status\n $status", e))
-            end
-        end
-    end
-    throw(TimeoutException("timed out after waiting for worker $(pod_name) to init for $(manager.retry_seconds) seconds, with status\n $status", e))
 end
 
 function worker_pod_spec(manager::K8sClusterManager; kwargs...)
@@ -114,56 +92,39 @@ function Distributed.launch(manager::K8sClusterManager, params::Dict, launched::
     # required.
     cmd = `$exename $exeflags --worker=$(cluster_cookie()) --bind-to=0:$WORKER_PORT`
 
-    errors = Dict()
-    # try not to overwhelm kubectl proxy; wait longer if more workers requested
-    sleeptime = 0.1 * sqrt(manager.np)
-    asyncmap(1:manager.np) do i
-        worker_manifest = @static if VERSION >= v"1.5"
-            worker_pod_spec(manager; cmd)
-        else
-            worker_pod_spec(manager; cmd=cmd)
-        end
+    worker_manifest = @static if VERSION >= v"1.5"
+        worker_pod_spec(manager; cmd)
+    else
+        worker_pod_spec(manager; cmd=cmd)
+    end
 
-        # Note: User-defined `configure` function may or may-not be mutating
-        worker_manifest = manager.configure(worker_manifest)
+    # Note: User-defined `configure` function may or may-not be mutating
+    worker_manifest = manager.configure(worker_manifest)
 
-        pod_name = nothing
-        start = time()
-        try
-            sleep(rand() * sleeptime)
-            while time() - start < manager.retry_seconds
-                try
-                    pod_name = create_pod(worker_manifest)
-                    break
-                catch e
-                    sleep(rand() * sleeptime)
-                end
+    @sync for i in 1:manager.np
+        @async begin
+            pod_name = create_pod(worker_manifest)
+
+            pod = try
+                wait_for_running_pod(pod_name; timeout=manager.retry_seconds)
+            catch e
+                delete_pod(pod_name; wait=false)
+                rethrow()
             end
-            status = wait_for_pod_init(manager, pod_name)
-            sleep(2)
+
+            # Wait a few seconds to allow the worker to start listening to connections at
+            # expected port. If we don't wait long enough we will see a "connection refused"
+            # error (https://github.com/beacon-biosignals/K8sClusterManagers.jl/issues/46)
+            @info "$pod_name is up"
+            sleep(4)
+
             config = WorkerConfig()
-            config.host = status["podIP"]
+            config.host = pod["status"]["podIP"]
             config.port = WORKER_PORT
             config.userdata = (; pod_name=pod_name)
             push!(launched, config)
             notify(c)
-        catch e
-            @error "error launching job on port $port, deleting pod and skipping!"
-            push!(get!(() -> [], errors, typeof(e)), (e, catch_backtrace()))
-            start = time()
-            while time() - start < 5
-                try
-                    delete_pod(pod_name)
-                    break
-                catch e
-                    sleep(rand())
-                end
-            end
         end
-    end
-    for erray in values(errors)
-        e, backtrace = first(erray)
-        @warn "$(length(erray)) errors with the same type as" exception=(e, backtrace)
     end
 end
 

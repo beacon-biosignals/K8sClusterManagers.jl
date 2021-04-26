@@ -88,6 +88,36 @@ end
 
 
 """
+    wait_for_running_pod(name::AbstractString; timeout::Real) -> AbstractDict
+
+Wait for the pod with the given `name` to reach the "Running" phase. If the phase is reached
+before the `timeout` then the pod details will be returned, otherwise a `TimeoutException`
+will be raised.
+"""
+function wait_for_running_pod(name::AbstractString; timeout::Real)
+    pod = nothing
+
+    # `timedwait` requires a floating points for the `secs` argument and `pollint` keyword
+    @static if VERSION < v"1.5-"
+        timeout = float(timeout)
+    end
+
+    result = timedwait(timeout; pollint=1.0) do
+        pod = @mock get_pod(name)
+        pod["status"]["phase"] == "Running"
+    end
+
+    if result === :ok
+        return pod
+    else
+        msg = "timed out after waiting for worker $name to start for $timeout seconds, " *
+            "with status:\n" * JSON.json(pod["status"], 4)
+        throw(TimeoutException(msg))
+    end
+end
+
+
+"""
     worker_pod_spec(pod=POD_TEMPLATE; kwargs...)
 
 Generate a pod specification for a Julia worker inside a container.

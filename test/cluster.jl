@@ -55,6 +55,7 @@ end
         # call `create_pod` multiple times. However, we do want to avoid conflicts with previous
         # `Pkg.test` executions.
         name = "test-pod-control-named-" * randsuffix()
+        delete!(manifest["metadata"], "generateName")
         manifest["metadata"]["name"] = name
 
         @test_throws KubeError get_pod(name)
@@ -104,7 +105,6 @@ end
         manifest = deepcopy(pod_control_manifest)
 
         prefix = "test-pod-control-generate-name-"
-        delete!(manifest["metadata"], "name")
         manifest["metadata"]["generateName"] = prefix
 
         name_a = create_pod(manifest)
@@ -240,7 +240,10 @@ let job_name = "test-multi-addprocs"
         # Display details to assist in debugging the failure
         if any(r -> !(r isa Test.Pass || r isa Test.Broken), test_results)
             n = length(worker_pods)
-            worker_pairs = map((i, w) -> "worker $i/$n", enumerate(worker_pods))
+            worker_pairs = map(enumerate(worker_pods)) do (i, w)
+                "worker $i/$n" => w
+            end
+
             report(job_name, "manager" => manager_pod, worker_pairs...)
         end
     end
