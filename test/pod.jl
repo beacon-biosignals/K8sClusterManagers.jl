@@ -9,6 +9,35 @@ end
     end
 end
 
+@testset "wait_for_running_pod" begin
+    @testset "timeout" begin
+        function stateful_get_pod_patch()
+            states = ("Pending", "Running", "Succeeded")
+            i = 0
+
+            @patch function get_pod(name)
+                i <= length(states) && (i += 1)
+                Dict("status" => Dict("phase" => states[i]))
+            end
+        end
+
+        pod = apply(stateful_get_pod_patch()) do
+            wait_for_running_pod("foo"; timeout=10)
+        end
+
+        @test pod["status"]["phase"] == "Running"
+    end
+
+    # Note: It does not seems possible to reliably test timeout without using Mocking.
+    @testset "timeout" begin
+        patch = @patch get_pod(name) = Dict("status" => Dict("phase" => "Pending"))
+
+        apply(patch) do
+            @test_throws K8sClusterManagers.TimeoutException wait_for_running_pod("foo"; timeout=1)
+        end
+    end
+end
+
 @testset "worker_pod_spec" begin
     kwargs = (; cmd=`julia`, driver_name="driver", image="julia")
     pod = K8sClusterManagers.worker_pod_spec(; kwargs...)

@@ -98,7 +98,7 @@ function wait_for_running_pod(name::AbstractString; timeout::Real)
     pod = nothing
 
     result = timedwait(timeout; pollint=1) do
-        pod = get_pod(name)
+        pod = @mock get_pod(name)
         pod["status"]["phase"] == "Running"
     end
 

@@ -117,19 +117,6 @@ end
         delete_pod(name_a, wait=false)
         delete_pod(name_b, wait=false)
     end
-
-    @testset "wait_for_running_pod" begin
-        manifest = deepcopy(pod_control_manifest)
-        manifest["metadata"]["generateName"] = "test-pod-control-wait-"
-
-        name = create_pod(manifest)
-
-        @test_throws K8sClusterManagers.TimeoutException wait_for_running_pod(name; timeout=1)
-        pod = wait_for_running_pod(name; timeout=30)
-        @test pod["status"]["phase"] == "Running"
-
-        delete_pod(name, wait=false)
-    end
 end
 
 let job_name = "test-success"
