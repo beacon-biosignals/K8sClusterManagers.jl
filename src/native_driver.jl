@@ -101,22 +101,23 @@ function Distributed.launch(manager::K8sClusterManager, params::Dict, launched::
         @async begin
             pod_name = create_pod(worker_manifest)
 
-            try
-                status = wait_for_running_pod(pod_name; timeout=manager.retry_seconds)
-                @info "$pod_name is up"
-
-                sleep(2)
-
-                config = WorkerConfig()
-                config.host = status["podIP"]
-                config.port = WORKER_PORT
-                config.userdata = (; pod_name=pod_name)
-                push!(launched, config)
-                notify(c)
+            status = try
+                wait_for_running_pod(pod_name; timeout=manager.retry_seconds)
             catch e
                 delete_pod(pod_name; wait=false)
                 rethrow()
             end
+
+            @info "$pod_name is up"
+
+            sleep(2)
+
+            config = WorkerConfig()
+            config.host = status["podIP"]
+            config.port = WORKER_PORT
+            config.userdata = (; pod_name=pod_name)
+            push!(launched, config)
+            notify(c)
         end
     end
 end
