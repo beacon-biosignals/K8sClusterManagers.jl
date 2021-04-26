@@ -99,7 +99,6 @@ function Distributed.launch(manager::K8sClusterManager, params::Dict, launched::
 
     asyncmap(1:manager.np) do i
         pod_name = nothing
-        start = time()
         try
             pod_name = create_pod(worker_manifest)
             status = wait_for_running_pod(pod_name; timeout=manager.retry_seconds)
