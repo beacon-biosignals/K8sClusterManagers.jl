@@ -10,15 +10,15 @@ end
 end
 
 @testset "worker_pod_spec" begin
-    kwargs = (; port=8080, cmd=`julia`, driver_name="driver", image="julia")
+    kwargs = (; cmd=`julia`, driver_name="driver", image="julia")
     pod = K8sClusterManagers.worker_pod_spec(; kwargs...)
 
     @test keys(pod) == Set(["apiVersion", "kind", "metadata", "spec"])
     @test pod["apiVersion"] == "v1"
     @test pod["kind"] == "Pod"
 
-    @test keys(pod["metadata"]) == Set(["name", "labels"])
-    @test pod["metadata"]["name"] == "driver-worker-8080"
+    @test keys(pod["metadata"]) == Set(["generateName", "labels"])
+    @test pod["metadata"]["generateName"] == "driver-worker-"
     @test keys(pod["metadata"]["labels"]) == Set(["manager"])
     @test pod["metadata"]["labels"]["manager"] == "driver"
 
@@ -29,7 +29,7 @@ end
     @test keys(worker) == Set(["name", "image", "command", "resources"])
     @test worker["name"] == "worker"
     @test worker["image"] == "julia"
-    @test worker["command"] == ["julia", "--bind-to=0:8080"]
+    @test worker["command"] == ["julia"]
     @test worker["resources"]["requests"]["cpu"] == DEFAULT_WORKER_CPU
     @test worker["resources"]["requests"]["memory"] == DEFAULT_WORKER_MEMORY
     @test worker["resources"]["limits"]["cpu"] == DEFAULT_WORKER_CPU

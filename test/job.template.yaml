@@ -51,8 +51,8 @@ spec:
         imagePullPolicy: Never  # Avoid attempting to pull local-only images
         resources:
           limits:
-            cpu: 1
-            memory: 750M
+            cpu: 0.5
+            memory: 300Mi
         command: [{{#:command}}"{{{.}}}"{{^.[end]}}, {{/.[end]}}{{/:command}}]
         args: [{{#:args}}"{{{.}}}"{{^.[end]}}, {{/.[end]}}{{/:args}}]
         stdin: true

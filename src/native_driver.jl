@@ -1,8 +1,12 @@
 const DEFAULT_WORKER_CPU = 1
 const DEFAULT_WORKER_MEMORY = "4Gi"
 
+# Port number listened to by workers. The port number was randomly chosen from the ephemeral
+# port range: 49152-65535.
+const WORKER_PORT = 51400
+
 struct K8sClusterManager <: ClusterManager
-    ports::Vector{UInt16}
+    np::Int
     driver_name::String
     image::String
     cpu::String
@@ -63,8 +67,7 @@ function K8sClusterManager(np::Integer;
         end
     end
 
-    ports = 9000 .+ (1:np)
-    return K8sClusterManager(ports, driver_name, image, string(cpu), string(memory), retry_seconds, configure)
+    return K8sClusterManager(np, driver_name, image, string(cpu), string(memory), retry_seconds, configure)
 end
 
 struct TimeoutException <: Exception
@@ -107,16 +110,18 @@ function Distributed.launch(manager::K8sClusterManager, params::Dict, launched::
     exename = params[:exename]
     exeflags = params[:exeflags]
 
-    cmd = `$exename $exeflags --worker=$(cluster_cookie())`
+    # Note: We currently use the same port number for all workers but this isn't strictly
+    # required.
+    cmd = `$exename $exeflags --worker=$(cluster_cookie()) --bind-to=0:$WORKER_PORT`
 
     errors = Dict()
     # try not to overwhelm kubectl proxy; wait longer if more workers requested
-    sleeptime = 0.1 * sqrt(length(manager.ports))
-    asyncmap(manager.ports) do port
+    sleeptime = 0.1 * sqrt(manager.np)
+    asyncmap(1:manager.np) do i
         worker_manifest = @static if VERSION >= v"1.5"
-            worker_pod_spec(manager; port, cmd)
+            worker_pod_spec(manager; cmd)
         else
-            worker_pod_spec(manager; port=port, cmd=cmd)
+            worker_pod_spec(manager; cmd=cmd)
         end
 
         # Note: User-defined `configure` function may or may-not be mutating
@@ -138,7 +143,7 @@ function Distributed.launch(manager::K8sClusterManager, params::Dict, launched::
             sleep(2)
             config = WorkerConfig()
             config.host = status["podIP"]
-            config.port = port
+            config.port = WORKER_PORT
             config.userdata = (; pod_name=pod_name)
             push!(launched, config)
             notify(c)
