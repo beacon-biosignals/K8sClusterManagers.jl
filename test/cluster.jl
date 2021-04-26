@@ -55,6 +55,7 @@ end
         # call `create_pod` multiple times. However, we do want to avoid conflicts with previous
         # `Pkg.test` executions.
         name = "test-pod-control-named-" * randsuffix()
+        delete!(manifest["metadata"], "generateName")
         manifest["metadata"]["name"] = name
 
         @test_throws KubeError get_pod(name)
@@ -104,7 +105,6 @@ end
         manifest = deepcopy(pod_control_manifest)
 
         prefix = "test-pod-control-generate-name-"
-        delete!(manifest["metadata"], "name")
         manifest["metadata"]["generateName"] = prefix
 
         name_a = create_pod(manifest)
@@ -120,10 +120,7 @@ end
 
     @testset "wait_for_running_pod" begin
         manifest = deepcopy(pod_control_manifest)
-
-        prefix = "test-pod-control-wait-"
-        delete!(manifest["metadata"], "name")
-        manifest["metadata"]["generateName"] = prefix
+        manifest["metadata"]["generateName"] = "test-pod-control-wait-"
 
         name = create_pod(manifest)
 

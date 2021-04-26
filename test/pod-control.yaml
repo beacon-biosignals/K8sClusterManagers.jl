@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Pod
 metadata:
-  name: pod-control
+  generateName: test-pod-control-
 spec:
   restartPolicy: "Never"
   containers:
