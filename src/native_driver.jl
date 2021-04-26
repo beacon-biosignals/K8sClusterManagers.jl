@@ -101,7 +101,7 @@ function Distributed.launch(manager::K8sClusterManager, params::Dict, launched::
         @async begin
             pod_name = create_pod(worker_manifest)
 
-            status = try
+            pod = try
                 wait_for_running_pod(pod_name; timeout=manager.retry_seconds)
             catch e
                 delete_pod(pod_name; wait=false)
@@ -115,7 +115,7 @@ function Distributed.launch(manager::K8sClusterManager, params::Dict, launched::
             sleep(2)
 
             config = WorkerConfig()
-            config.host = status["podIP"]
+            config.host = pod["status"]["podIP"]
             config.port = WORKER_PORT
             config.userdata = (; pod_name=pod_name)
             push!(launched, config)

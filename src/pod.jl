@@ -87,19 +87,26 @@ function delete_pod(name::AbstractString; wait::Bool=true)
 end
 
 
-function wait_for_running_pod(name::AbstractString; timeout::Real)
-    status = nothing
+"""
+    wait_for_running_pod(name::AbstractString; timeout::Real) -> AbstractDict
 
-    result = timedwait(timeout) do
-        status = get_pod(name)["status"]
-        status["phase"] == "Running"
+Wait for the pod with the given `name` to reach the "Running" phase. If the phase is reached
+before the `timeout` then the pod details will be returned, otherwise a `TimeoutException`
+will be raised.
+"""
+function wait_for_running_pod(name::AbstractString; timeout::Real)
+    pod = nothing
+
+    result = timedwait(timeout; pollint=1) do
+        pod = get_pod(name)
+        pod["status"]["phase"] == "Running"
     end
 
     if result === :ok
-        return status
+        return pod
     else
         msg = "timed out after waiting for worker $name to start for $timeout seconds, " *
-            "with status:\n" * JSON.json(status, 4)
+            "with status:\n" * JSON.json(pod["status"], 4)
         throw(TimeoutException(msg))
     end
 end
