@@ -87,6 +87,24 @@ function delete_pod(name::AbstractString; wait::Bool=true)
 end
 
 
+function wait_for_running_pod(name::AbstractString; timeout::Real)
+    status = nothing
+
+    result = timedwait(timeout) do
+        status = get_pod(name)["status"]
+        status["phase"] == "Running"
+    end
+
+    if result === :ok
+        return status
+    else
+        msg = "timed out after waiting for worker $name to start for $timeout seconds, " *
+            "with status:\n" * JSON.json(status, 4)
+        throw(TimeoutException(msg))
+    end
+end
+
+
 """
     worker_pod_spec(pod=POD_TEMPLATE; kwargs...)
 

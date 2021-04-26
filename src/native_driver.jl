@@ -72,28 +72,6 @@ end
 
 struct TimeoutException <: Exception
     msg::String
-    cause::Exception
-end
-
-function wait_for_pod_init(manager::K8sClusterManager, pod_name::AbstractString)
-    status = nothing
-    start = time()
-    while true
-        # try not to overwhelm kubectl proxy; staggered wait
-        sleep(1 + rand())
-        try
-            status = get_pod(pod_name)["status"]
-            if status["phase"] == "Running"
-                @info "$pod_name is up"
-                return status
-            end
-        catch e
-            if time() - start > manager.retry_seconds
-                throw(TimeoutException("timed out after waiting for worker $(pod_name) to init for $(manager.retry_seconds) seconds, with status\n $status", e))
-            end
-        end
-    end
-    throw(TimeoutException("timed out after waiting for worker $(pod_name) to init for $(manager.retry_seconds) seconds, with status\n $status", e))
 end
 
 function worker_pod_spec(manager::K8sClusterManager; kwargs...)
@@ -124,7 +102,8 @@ function Distributed.launch(manager::K8sClusterManager, params::Dict, launched::
         start = time()
         try
             pod_name = create_pod(worker_manifest)
-            status = wait_for_pod_init(manager, pod_name)
+            status = wait_for_running_pod(pod_name; timeout=manager.retry_seconds)
+            @info "$pod_name is up"
 
             sleep(2)
 
