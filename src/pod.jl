@@ -97,12 +97,12 @@ will be raised.
 function wait_for_running_pod(name::AbstractString; timeout::Real)
     pod = nothing
 
-    # `timedwait` requires a floating point data type on earlier versions of Julia
+    # `timedwait` requires a floating points for the `secs` argument and `pollint` keyword
     @static if VERSION < v"1.5-"
         timeout = float(timeout)
     end
 
-    result = timedwait(timeout; pollint=1) do
+    result = timedwait(timeout; pollint=1.0) do
         pod = @mock get_pod(name)
         pod["status"]["phase"] == "Running"
     end
