@@ -8,6 +8,7 @@ using Mocking: Mocking, @patch, apply
 using Mustache: Mustache, render
 using Random: randstring
 using Test
+using YAML: YAML
 using kubectl_jll: kubectl
 
 Mocking.activate()

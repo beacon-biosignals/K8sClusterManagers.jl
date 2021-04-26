@@ -72,8 +72,7 @@ struct TimeoutException <: Exception
     cause::Exception
 end
 
-function wait_for_pod_init(manager::K8sClusterManager, pod)
-    pod_name = pod["metadata"]["name"]
+function wait_for_pod_init(manager::K8sClusterManager, pod_name::AbstractString)
     status = nothing
     start = time()
     while true
@@ -114,31 +113,33 @@ function Distributed.launch(manager::K8sClusterManager, params::Dict, launched::
     # try not to overwhelm kubectl proxy; wait longer if more workers requested
     sleeptime = 0.1 * sqrt(length(manager.ports))
     asyncmap(manager.ports) do port
-        pod = @static if VERSION >= v"1.5"
+        worker_manifest = @static if VERSION >= v"1.5"
             worker_pod_spec(manager; port, cmd)
         else
             worker_pod_spec(manager; port=port, cmd=cmd)
         end
 
-        pod = manager.configure(pod)
+        # Note: User-defined `configure` function may or may-not be mutating
+        worker_manifest = manager.configure(worker_manifest)
 
+        pod_name = nothing
         start = time()
         try
             sleep(rand() * sleeptime)
             while time() - start < manager.retry_seconds
                 try
-                    create_pod(pod)
+                    pod_name = create_pod(worker_manifest)
                     break
                 catch e
                     sleep(rand() * sleeptime)
                 end
             end
-            status = wait_for_pod_init(manager, pod)
+            status = wait_for_pod_init(manager, pod_name)
             sleep(2)
             config = WorkerConfig()
             config.host = status["podIP"]
             config.port = port
-            config.userdata = (; pod_name=pod["metadata"]["name"])
+            config.userdata = (; pod_name=pod_name)
             push!(launched, config)
             notify(c)
         catch e
@@ -147,7 +148,7 @@ function Distributed.launch(manager::K8sClusterManager, params::Dict, launched::
             start = time()
             while time() - start < 5
                 try
-                    delete_pod(pod["metadata"]["name"])
+                    delete_pod(pod_name)
                     break
                 catch e
                     sleep(rand())

@@ -69,63 +69,83 @@ escape_yaml_string(str::AbstractString) = escape_string(str)
 randsuffix(len=5) = randstring(['a':'z'; '0':'9'], len)
 
 @testset "pod control" begin
-    driver_name = "test-pod-control-" * randsuffix()
-
-    # Note: We don't need to use the `TEST_IMAGE` here but it avoid having to download
-    # another Docker image.
-    kwargs = (; port=8080, cmd=`julia`, driver_name, image=TEST_IMAGE, memory="16M")
-    pod_spec = K8sClusterManagers.worker_pod_spec(; kwargs...)
+    pod_control_manifest = YAML.load_file(joinpath(@__DIR__, "pod-control.yaml"))
 
     # Overwrite some parts of the specification
-    pod_spec["metadata"]["name"] = driver_name
-    container = pod_spec["spec"]["containers"][1]
-    container["imagePullPolicy"] = "Never"
-    container["command"] = ["sleep"]
-    container["args"] = ["60"]
+    # Note: We don't need to use the `TEST_IMAGE` here but it avoid having to download
+    # another Docker image.
+    pod_control_manifest["spec"]["containers"][1]["image"] = TEST_IMAGE
+    pod_control_manifest["spec"]["containers"][1]["imagePullPolicy"] = "Never"
 
-    name = pod_spec["metadata"]["name"]
+    @testset "named" begin
+        manifest = deepcopy(pod_control_manifest)
 
-    @test_throws KubeError get_pod(name)
-    @test_throws KubeError delete_pod(name)
+        # Note: We do not want to use "generateName" here we want to use the same name when we
+        # call `create_pod` multiple times. However, we do want to avoid conflicts with previous
+        # `Pkg.test` executions.
+        name = "test-pod-control-named-" * randsuffix()
+        manifest["metadata"]["name"] = name
 
-    @info "Creating pod $name"
-    create_pod(pod_spec)
+        @test_throws KubeError get_pod(name)
+        @test_throws KubeError delete_pod(name)
 
-    @test_throws KubeError create_pod(pod_spec)
-    @test get_pod(name)["status"]["phase"] == "Pending"
+        @info "Creating pod $name"
+        create_pod(manifest)
 
-    @info "Waiting for pod to start..."
-    while get_pod(name)["status"]["phase"] == "Pending"
-        sleep(1)
-    end
+        @test_throws KubeError create_pod(manifest)
+        @test get_pod(name)["status"]["phase"] == "Pending"
 
-    @test get_pod(name)["status"]["phase"] == "Running"
-
-    # Avoid deleting the pod if we've reached a unhandled phase. This allows for
-    # investigation with `kubectl`.
-    if get_pod(name)["status"]["phase"] == "Running"
-        @info "Deleting pod $name"
-        # Avoid waiting for the pod to be deleted as this can take some time
-        delete_pod(name, wait=false)
-
-        # Note: Ideally we would be able to capture the "Terminating" status as reported by
-        # `kubectl get pods -w`. Unforturnately I'm not sure how to retrieve this
-        # information as it does not seem to be reported by `kubectl get pod` or
-        # `kubectl get events`.
-        reason = nothing
-        while reason === nothing || reason == "Started"
-            reason = kubectl() do exe
-                output = "jsonpath={.items[-1:].reason}"
-                read(`$exe get events --field-selector involvedObject.name=$name -o=$output`, String)
-            end
+        @info "Waiting for pod to start..."
+        while get_pod(name)["status"]["phase"] == "Pending"
+            sleep(1)
         end
 
-        @test reason == "Killing"
-    else
-        @warn "Skipping deletion of pod $name"
+        @test get_pod(name)["status"]["phase"] == "Running"
+
+        # Avoid deleting the pod if we've reached a unhandled phase. This allows for
+        # investigation with `kubectl`.
+        if get_pod(name)["status"]["phase"] == "Running"
+            @info "Deleting pod $name"
+            # Avoid waiting for the pod to be deleted as this can take some time
+            delete_pod(name, wait=false)
+
+            # Note: Ideally we would be able to capture the "Terminating" status as reported by
+            # `kubectl get pods -w`. Unforturnately I'm not sure how to retrieve this
+            # information as it does not seem to be reported by `kubectl get pod` or
+            # `kubectl get events`.
+            reason = nothing
+            while reason === nothing || reason == "Started"
+                reason = kubectl() do exe
+                    output = "jsonpath={.items[-1:].reason}"
+                    read(`$exe get events --field-selector involvedObject.name=$name -o=$output`, String)
+                end
+            end
+
+            @test reason == "Killing"
+        else
+            @warn "Skipping deletion of pod $name"
+        end
+
+        # TODO: Would be nice to show details of the pod if any of these tests fail
     end
 
-    # TODO: Would be nice to show details of the pod if any of these tests fail
+    @testset "generate name" begin
+        manifest = deepcopy(pod_control_manifest)
+
+        prefix = "test-pod-control-generate-name-"
+        delete!(manifest["metadata"], "name")
+        manifest["metadata"]["generateName"] = prefix
+
+        name_a = create_pod(manifest)
+        name_b = create_pod(manifest)
+
+        @test name_a != name_b
+        @test startswith(name_a, prefix)
+        @test startswith(name_b, prefix)
+
+        delete_pod(name_a, wait=false)
+        delete_pod(name_b, wait=false)
+    end
 end
 
 let job_name = "test-success"
