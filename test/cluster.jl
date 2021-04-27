@@ -165,7 +165,7 @@ let job_name = "test-success"
                 pod["spec"]["containers"][1]["imagePullPolicy"] = "Never"
                 return pod
             end
-            addprocs(K8sClusterManager(1; configure, retry_seconds=60, cpu="0.5", memory="300Mi"))
+            addprocs(K8sClusterManager(1; configure, pending_timeout=60, cpu="0.5", memory="300Mi"))
 
             println("Num Processes: ", nprocs())
             for i in workers()
@@ -228,7 +228,7 @@ let job_name = "test-multi-addprocs"
                 return pod
             end
 
-            mgr = K8sClusterManager(1; configure, retry_seconds=60, cpu="0.5", memory="300Mi")
+            mgr = K8sClusterManager(1; configure, pending_timeout=60, cpu="0.5", memory="300Mi")
             addprocs(mgr)
             addprocs(mgr)
 
@@ -297,7 +297,7 @@ let job_name = "test-interrupt"
                 return pod
             end
 
-            mgr = K8sClusterManager(1; configure, retry_seconds=60, cpu="0.5", memory="300Mi")
+            mgr = K8sClusterManager(1; configure, pending_timeout=60, cpu="0.5", memory="300Mi")
             pids = addprocs(mgr)
             interrupt(pids)
             """
