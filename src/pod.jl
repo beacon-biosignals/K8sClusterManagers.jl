@@ -119,13 +119,20 @@ function wait_for_running_pod(name::AbstractString; timeout::Real)
         timeout = float(timeout)
     end
 
+    # https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-phase
     result = timedwait(timeout; pollint=1.0) do
         pod = @mock get_pod(name)
-        pod["status"]["phase"] == "Running"
+        pod["status"]["phase"] != "Pending"
     end
 
     if result === :ok
-        return pod
+        phase = pod !== nothing ? pod["status"]["phase"] : nothing
+
+        if phase == "Running"
+            return pod
+        else
+            error("Worker pod $name expected to in phase \"Running\" and instead is \"$phase\"")
+        end
     else
         msg = "timed out after waiting for worker $name to start for $timeout seconds, " *
             "with status:\n" * JSON.json(pod["status"], 4)
