@@ -10,18 +10,17 @@ end
 end
 
 @testset "wait_for_running_pod" begin
-    @testset "timeout" begin
-        function stateful_get_pod_patch()
-            states = ("Pending", "Running", "Succeeded")
-            i = 0
-
-            @patch function get_pod(name)
-                i <= length(states) && (i += 1)
-                Dict("status" => Dict("phase" => states[i]))
-            end
+    function stateful_get_pod_patch(states)
+        i = 0
+        @patch function get_pod(name)
+            i <= length(states) && (i += 1)
+            Dict("status" => Dict("phase" => states[i]))
         end
+    end
 
-        pod = apply(stateful_get_pod_patch()) do
+    @testset "basic" begin
+        states = ("Pending", "Running", "Succeeded")
+        pod = apply(stateful_get_pod_patch(states)) do
             wait_for_running_pod("foo"; timeout=10)
         end
 
@@ -34,6 +33,13 @@ end
 
         apply(patch) do
             @test_throws K8sClusterManagers.TimeoutException wait_for_running_pod("foo"; timeout=1)
+        end
+    end
+
+    @testset "failure" begin
+        states = ("Failed",)
+        apply(stateful_get_pod_patch(states)) do
+            @test_throws ErrorException wait_for_running_pod("foo"; timeout=1)
         end
     end
 end
