@@ -12,7 +12,7 @@ struct K8sClusterManager <: ClusterManager
     cpu::String
     memory::String
 
-    retry_seconds::Int
+    pending_timeout::Int
     configure::Function
 end
 
@@ -38,9 +38,9 @@ available.
 - `memory`: [Memory resource requested](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#meaning-of-memory)
   for each worker in bytes. Requests may provide a unit suffix (e.g. "G" for Gigabytes and
   "GiB" for Gibibytes). Defaults to `$(repr(DEFAULT_WORKER_MEMORY))`.
-- `retry_seconds`: The maximum number of seconds to wait for a worker pod to enter the
-  "Running" phase. Once the time limit has been reached the manager will continue with the
-  number of workers available (`<= np`). Defaults to `180` (3 minutes).
+- `pending_timeout`: The maximum number of seconds to wait for a "Pending" worker pod to
+  enter the "Running" phase. Once the timeout has been reached the manager will continue
+  with the number of workers available (`<= np`). Defaults to `180` (3 minutes).
 - `configure`: A function which allows modification of the worker pod specification before
   their creation. Defaults to `identity`.
 """
@@ -50,7 +50,7 @@ function K8sClusterManager(np::Integer;
                            image=nothing,
                            cpu=DEFAULT_WORKER_CPU,
                            memory=DEFAULT_WORKER_MEMORY,
-                           retry_seconds::Int=180,
+                           pending_timeout::Real=180,
                            configure=identity)
 
     # Default to using the image of the pod if possible
@@ -67,7 +67,7 @@ function K8sClusterManager(np::Integer;
         end
     end
 
-    return K8sClusterManager(np, driver_name, image, string(cpu), string(memory), retry_seconds, configure)
+    return K8sClusterManager(np, driver_name, image, string(cpu), string(memory), pending_timeout, configure)
 end
 
 struct TimeoutException <: Exception
@@ -106,7 +106,7 @@ function Distributed.launch(manager::K8sClusterManager, params::Dict, launched::
             pod_name = create_pod(worker_manifest)
 
             pod = try
-                wait_for_running_pod(pod_name; timeout=manager.retry_seconds)
+                wait_for_running_pod(pod_name; timeout=manager.pending_timeout)
             catch e
                 delete_pod(pod_name; wait=false)
                 rethrow()
