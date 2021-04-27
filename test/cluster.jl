@@ -32,6 +32,11 @@ const POD_NAME_REGEX = r"Worker pod (?<worker_id>\d+): (?<pod_name>[a-z0-9.-]+)"
 # As a convenience we'll automatically build the Docker image when a user uses `Pkg.test()`.
 # If the environmental variable is set we expect the Docker image has already been built.
 if !haskey(ENV, "K8S_CLUSTER_MANAGERS_TEST_IMAGE")
+    if success(`command -v minikube`) && !haskey(ENV, "MINIKUBE_ACTIVE_DOCKERD")
+        @warn "minikube users should run `eval \$(minikube docker-env)` before executing " *
+            "tests. Otherwise you may see pods fail with the reason \"ErrImageNeverPull\""
+    end
+
     run(`docker build -t $TEST_IMAGE $PKG_DIR`)
 
     # Alternate build call which works on Apple Silicon
@@ -123,6 +128,30 @@ end
 
         delete_pod(name_a, wait=false)
         delete_pod(name_b, wait=false)
+    end
+
+    @testset "exec" begin
+        manifest = deepcopy(pod_control_manifest)
+        manifest["metadata"]["generateName"] = "test-pod-control-exec-"
+
+        name = create_pod(manifest)
+        wait_for_running_pod(name; timeout=30)
+
+        @test exec_pod(name, `bash -c "exit 0"`) === nothing
+
+        try
+            exec_pod(name, `kill -s INT 1`)
+        catch e
+            # Ensure that useful information from stdout/stderr is included
+            if e isa KubeError
+                @test occursin("\"kill\": executable file not found in \$PATH", e.msg)
+                @test occursin("command terminated with exit code 126", e.msg)
+            else
+                rethrow()
+            end
+        end
+
+        delete_pod(name; wait=false)
     end
 end
 
@@ -253,6 +282,51 @@ let job_name = "test-multi-addprocs"
             end
 
             report(job_name, "manager" => manager_pod, worker_pairs...)
+        end
+    end
+end
+
+let job_name = "test-interrupt"
+    @testset "$job_name" begin
+        code = """
+            using Distributed, K8sClusterManagers
+
+            # Avoid trying to pull local-only image
+            function configure(pod)
+                pod["spec"]["containers"][1]["imagePullPolicy"] = "Never"
+                return pod
+            end
+
+            mgr = K8sClusterManager(1; configure, retry_seconds=60, cpu="0.5", memory="300Mi")
+            pids = addprocs(mgr)
+            interrupt(pids)
+            """
+
+        command = ["julia"]
+        args = ["-e", escape_yaml_string(code)]
+        manifest = render(JOB_TEMPLATE; job_name, image=TEST_IMAGE, command, args)
+        k8s_create(IOBuffer(manifest))
+
+        # Wait for job to reach status: "Complete" or "Failed".
+        @info "Waiting for $job_name job. This could take up to 4 minutes..."
+        wait_job(job_name, condition=!isempty, timeout=4 * 60)
+
+        manager_pod = first(pod_names("job-name" => job_name))
+        worker_pod = first(pod_names("manager" => manager_pod))
+
+        manager_log = pod_logs(manager_pod)
+
+        test_results = [
+            @test pod_phase(manager_pod) == "Succeeded"
+            @test pod_phase(worker_pod) == "Failed"
+
+            # Ensure there are no unexpected error messages in the log
+            @test !occursin(r"\bError\b"i, manager_log)
+        ]
+
+        # Display details to assist in debugging the failure
+        if any(r -> !(r isa Test.Pass || r isa Test.Broken), test_results)
+            report(job_name, "manager" => manager_pod, "worker" => worker_pod)
         end
     end
 end
