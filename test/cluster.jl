@@ -32,6 +32,11 @@ const POD_NAME_REGEX = r"Worker pod (?<worker_id>\d+): (?<pod_name>[a-z0-9.-]+)"
 # As a convenience we'll automatically build the Docker image when a user uses `Pkg.test()`.
 # If the environmental variable is set we expect the Docker image has already been built.
 if !haskey(ENV, "K8S_CLUSTER_MANAGERS_TEST_IMAGE")
+    if success(`command -v minikube`) && !haskey(ENV, "MINIKUBE_ACTIVE_DOCKERD")
+        @warn "minikube users should run `eval \$(minikube docker-env)` before executing " *
+            "tests. Otherwise you may see pods fail with the reason \"ErrImageNeverPull\""
+    end
+
     run(`docker build -t $TEST_IMAGE $PKG_DIR`)
 
     # Alternate build call which works on Apple Silicon
