@@ -135,5 +135,18 @@ function Distributed.manage(manager::K8sClusterManager, id::Integer, config::Wor
         # Note: Labelling the pod with the worker ID is only a nice-to-have. We may want to
         # make this fail gracefully if "patch" access is unavailable.
         label_pod(pod_name, "worker-id" => id)
+
+    elseif op === :interrupt
+        os_pid = config.ospid
+        if os_pid !== nothing
+            try
+                exec_pod(pod_name, `bash -c "kill -2 $os_pid"`)
+            catch e
+                @error "Error sending a Ctrl-C to julia worker $id on pod $pod_name:\n" * sprint(showerror, e)
+            end
+        else
+            # This state can happen immediately after an addprocs
+            @error "Worker $id cannot be presently interrupted."
+        end
     end
 end

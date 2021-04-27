@@ -135,6 +135,24 @@ end
 
 
 """
+    exec_pod(name::AbstractString, cmd::Cmd) -> Nothing
+
+Execute `cmd` on the `name`d pod. If the command fails a `KubeError` will be raised.
+"""
+function exec_pod(name::AbstractString, cmd::Cmd)
+    # When an `exec` failure occurs there is some useful information in stdout and stderr
+    err = IOBuffer()
+    p = kubectl() do exe
+        exec_cmd = `$exe exec pod/$name -- $cmd`
+        run(pipeline(ignorestatus(exec_cmd), stdout=err, stderr=err))
+    end
+
+    !success(p) && throw(KubeError(err))
+    return nothing
+end
+
+
+"""
     worker_pod_spec(pod=POD_TEMPLATE; kwargs...)
 
 Generate a pod specification for a Julia worker inside a container.
