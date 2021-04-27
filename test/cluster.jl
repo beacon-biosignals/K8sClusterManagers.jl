@@ -125,12 +125,14 @@ end
         delete_pod(name_b, wait=false)
     end
 
-    @testset "exec failure" begin
+    @testset "exec" begin
         manifest = deepcopy(pod_control_manifest)
-        manifest["metadata"]["generateName"] = "test-pod-control-exec-failure-"
+        manifest["metadata"]["generateName"] = "test-pod-control-exec-"
 
         name = create_pod(manifest)
         wait_for_running_pod(name; timeout=30)
+
+        @test exec_pod(name, `bash -c "exit 0"`) === nothing
 
         try
             exec_pod(name, `kill -s INT 1`)
