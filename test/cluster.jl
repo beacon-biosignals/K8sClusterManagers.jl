@@ -72,11 +72,18 @@ end
             sleep(1)
         end
 
-        @test get_pod(name)["status"]["phase"] == "Running"
+        pod = get_pod(name)
+        @test pod["status"]["phase"] == "Running"
+        @test isempty(get(pod["metadata"], "labels", Dict()))
+
+        label_pod(name, "testset" => "pod-control")
+
+        pod = get_pod(name)
+        @test get_pod(name)["metadata"]["labels"] == Dict("testset" => "pod-control")
 
         # Avoid deleting the pod if we've reached a unhandled phase. This allows for
         # investigation with `kubectl`.
-        if get_pod(name)["status"]["phase"] == "Running"
+        if pod["status"]["phase"] == "Running"
             @info "Deleting pod $name"
             # Avoid waiting for the pod to be deleted as this can take some time
             delete_pod(name, wait=false)
@@ -213,10 +220,11 @@ let job_name = "test-multi-addprocs"
         wait_job(job_name, condition=!isempty, timeout=4 * 60)
 
         manager_pod = first(pod_names("job-name" => job_name))
-        worker_pods = pod_names("manager" => manager_pod)
+        worker_pods = pod_names("manager" => manager_pod; sort_by="{.metadata.labels.worker-id}")
 
         manager_log = pod_logs(manager_pod)
-        reported_workers = map(m -> m[:pod_name], eachmatch(POD_NAME_REGEX, manager_log))
+        matches = collect(eachmatch(POD_NAME_REGEX, manager_log))
+        reported_worker_pods = map(m -> m[:pod_name], sort!(matches; by=m -> m[:worker_id]))
 
         test_results = [
             @test get_job(job_name, jsonpath="{.status..type}") == "Complete"
@@ -230,8 +238,8 @@ let job_name = "test-multi-addprocs"
             @test pod_phase(worker_pods[1]) == "Succeeded"
             @test pod_phase(worker_pods[2]) == "Succeeded"
 
-            @test length(reported_workers) == length(worker_pods)
-            @test Set(reported_workers) == Set(worker_pods)
+            @test length(matches) == length(worker_pods)
+            @test reported_worker_pods == worker_pods
 
             # Ensure there are no unexpected error messages in the log
             @test !occursin(r"\bError\b"i, manager_log)

@@ -38,14 +38,15 @@ pod_logs(pod_name) = kubectl(exe -> read(ignorestatus(`$exe logs $pod_name`), St
 # https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-phase
 pod_phase(pod_name) = kubectl(exe -> read(`$exe get pod/$pod_name -o 'jsonpath={.status.phase}'`, String))
 
-function pod_names(labels::Pair...)
+function pod_names(labels::Pair...; sort_by=nothing)
     selectors = Dict{String,String}(labels)
     selector = join(map(p -> join(p, '='), collect(pairs(selectors))), ',')
 
     # Adapted from: https://kubernetes.io/docs/concepts/workloads/controllers/job/#running-an-example-job
     jsonpath = "{range .items[*]}{.metadata.name}{\"\\n\"}{end}"
+    sort_by_opt = sort_by !== nothing ? `--sort-by=$sort_by` : ``
     output = kubectl() do exe
-        readchomp(`$exe get pods -l $selector -o=jsonpath=$jsonpath`)
+        readchomp(`$exe get pods -l $selector -o=jsonpath=$jsonpath $sort_by_opt`)
     end
     return !isempty(output) ? split(output, '\n') : String[]
 end
