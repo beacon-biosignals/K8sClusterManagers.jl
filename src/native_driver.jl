@@ -132,6 +132,8 @@ function Distributed.manage(manager::K8sClusterManager, id::Integer, config::Wor
     pod_name = config.userdata.pod_name
 
     if op === :register
+        # Note: Labelling the pod with the worker ID is only a nice-to-have. We may want to
+        # make this fail gracefully if "patch" access is unavailable.
         label_pod(pod_name, "worker-id" => id)
     end
 end
