@@ -5,6 +5,9 @@ const DEFAULT_WORKER_MEMORY = "4Gi"
 # port range: 49152-65535.
 const WORKER_PORT = 51400
 
+# Notifies tasks that the abnormal worker deregistration warning has been emitted
+const DEREGISTER_ALERT = Condition()
+
 struct K8sClusterManager <: ClusterManager
     np::Int
     driver_name::String
@@ -147,6 +150,30 @@ function Distributed.manage(manager::K8sClusterManager, id::Integer, config::Wor
         else
             # This state can happen immediately after an addprocs
             @error "Worker $id cannot be presently interrupted."
+        end
+
+    elseif op === :deregister
+        # As the deregister `manage` call occurs before remote workers are told to
+        # deregister we should avoid unnecessarily blocking.
+        @async begin
+            # In the event of a worker pod failure Julia may notice the worker socket
+            # close before Kubernetes has the pod's final status available.
+            #
+            # Note: The wait duration of 30 seconds was picked as it's the default
+            # "grace period" used for pod termination.
+            # https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-termination
+            state = reason = nothing
+            timedwait(30.0, pollint=1.0) do
+                state, reason = pod_status(pod_name)
+                state == "terminated"
+            end
+
+            # Report any abnormal terminations of worker pods
+            if state == "terminated" && reason != "Completed"
+                @warn "Worker $id on pod $pod_name was terminated due to: $reason"
+            end
+
+            notify(DEREGISTER_ALERT; all=true)
         end
     end
 end

@@ -160,6 +160,41 @@ end
 
 
 """
+    pod_status(name::AbstractString) -> Pair
+    pod_status(resource::AbstractDict) -> Pair
+
+Determine the current pod state and, if applicable, the associated reason.
+"""
+function pod_status end
+
+function pod_status(resource::AbstractDict)
+    kind = resource["kind"]
+    if kind != "Pod"
+        throw(ArgumentError("Manifest expected to be of kind \"Pod\" and not \"$kind\""))
+    end
+
+    container_statuses = resource["status"]["containerStatuses"]
+
+    if length(container_statuses) != 1
+        throw(ArgumentError("Currently on pods with a single container are supported"))
+    end
+
+    container_status = first(container_statuses)
+    states = keys(container_status["state"])
+
+    if length(states) != 1
+        json = JSON.json("state" => container_status["state"])
+        throw(ArgumentError("Currently only a single state is supported:\n$json"))
+    end
+
+    state = first(states)
+    return state => get(container_status["state"][state], "reason", nothing)
+end
+
+pod_status(name::AbstractString) = pod_status(get_pod(name))
+
+
+"""
     worker_pod_spec(pod=POD_TEMPLATE; kwargs...)
 
 Generate a pod specification for a Julia worker inside a container.

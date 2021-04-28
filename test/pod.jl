@@ -44,6 +44,48 @@ end
     end
 end
 
+@testset "pod_status" begin
+    function gen_resource(status)
+        state, reason = status
+        state_dict = reason !== nothing ? Dict("reason" => reason) : Dict()
+        container_status = Dict("state" => Dict(state => state_dict))
+
+        return Dict("kind" => "Pod",
+                    "status" => Dict("containerStatuses" => [container_status]))
+    end
+
+    @testset "running" begin
+        r = gen_resource("running" => nothing)
+        @test pod_status(r) == ("running" => nothing)
+    end
+
+    @testset "terminated: Completed" begin
+        r = gen_resource("terminated" => "Completed")
+        @test pod_status(r) == ("terminated" => "Completed")
+    end
+
+    @testset "terminated: OOMKilled" begin
+        r = gen_resource("terminated" => "OOMKilled")
+        @test pod_status(r) == ("terminated" => "OOMKilled")
+    end
+
+    @testset "invalid kind" begin
+        @test_throws ArgumentError pod_status(Dict("kind" => "Unknown"))
+    end
+
+    @testset "multiple container statuses" begin
+        r = gen_resource("running" => nothing)
+        r["status"]["containerStatuses"] = repeat(r["status"]["containerStatuses"], 2)
+        @test_throws ArgumentError pod_status(r)
+    end
+
+    @testset "multiple states" begin
+        r = gen_resource("running" => nothing)
+        r["status"]["containerStatuses"][1]["state"]["extra"] = Dict()
+        @test_throws ArgumentError pod_status(r)
+    end
+end
+
 @testset "worker_pod_spec" begin
     kwargs = (; cmd=`julia`, driver_name="driver", image="julia")
     pod = K8sClusterManagers.worker_pod_spec(; kwargs...)

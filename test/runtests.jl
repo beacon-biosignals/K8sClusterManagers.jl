@@ -2,7 +2,7 @@ using Distributed
 using K8sClusterManagers
 using K8sClusterManagers: DEFAULT_NAMESPACE, NAMESPACE_FILE
 using K8sClusterManagers: DEFAULT_WORKER_CPU, DEFAULT_WORKER_MEMORY
-using K8sClusterManagers: create_pod, delete_pod, exec_pod, get_pod, label_pod,
+using K8sClusterManagers: create_pod, delete_pod, exec_pod, get_pod, label_pod, pod_status,
     wait_for_running_pod
 using LibGit2: LibGit2
 using Mocking: Mocking, @patch, apply

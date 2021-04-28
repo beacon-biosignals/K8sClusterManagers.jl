@@ -330,3 +330,72 @@ let job_name = "test-interrupt"
         end
     end
 end
+
+let job_name = "test-oom"
+    @testset "$job_name" begin
+        code = """
+            using Distributed, K8sClusterManagers
+
+            # Avoid trying to pull local-only image
+            function configure(pod)
+                pod["spec"]["containers"][1]["imagePullPolicy"] = "Never"
+                return pod
+            end
+
+            mgr = K8sClusterManager(1; configure, pending_timeout=60, cpu="0.5", memory="300Mi")
+            pids = addprocs(mgr)
+
+            @everywhere begin
+                function oom(T=Int64)
+                    max_elements = Sys.total_memory() ÷ sizeof(T)
+                    fill(zero(T), max_elements + 1)
+                end
+            end
+
+            f = remotecall(oom, first(pids))
+
+            # Use `wait` call to ensure that Distributed.jl notices the termination of the
+            # worker. We can safely ignore the expected `ProcessExitedException`.
+            try
+                wait(f)
+                error("`oom` call has not resulted in worker termination")
+            catch e
+                e isa ProcessExitedException || rethrow()
+            end
+
+            # Wait for the deregistration task which reports abnormal worker terminations.
+            wait(K8sClusterManagers.DEREGISTER_ALERT)
+            """
+
+        command = ["julia"]
+        args = ["-e", escape_yaml_string(code)]
+        manifest = render(JOB_TEMPLATE; job_name, image=TEST_IMAGE, command, args)
+        k8s_create(IOBuffer(manifest))
+
+        # Wait for job to reach status: "Complete" or "Failed".
+        @info "Waiting for $job_name job. This could take up to 4 minutes..."
+        wait_job(job_name, condition=!isempty, timeout=4 * 60)
+
+        manager_pod = first(pod_names("job-name" => job_name))
+        worker_pod = first(pod_names("manager" => manager_pod))
+
+        manager_log = pod_logs(manager_pod)
+        worker_oom_msg = "Worker 2 on pod $worker_pod was terminated due to: OOMKilled"
+
+        test_results = [
+            @test pod_phase(manager_pod) == "Succeeded"
+            @test pod_phase(worker_pod) == "Failed"
+
+            @test pod_status(worker_pod) == ("terminated" => "OOMKilled")
+            @test occursin(worker_oom_msg, manager_log)
+
+            # Ensure there are no unexpected error messages in the log
+            @test !occursin(r"\bError\b"i, manager_log)
+        ]
+
+        # Display details to assist in debugging the failure
+        if any(r -> !(r isa Test.Pass || r isa Test.Broken), test_results)
+            report(job_name, "manager" => manager_pod, "worker" => worker_pod)
+        end
+    end
+end
