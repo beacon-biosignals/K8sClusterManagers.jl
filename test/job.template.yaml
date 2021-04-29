@@ -10,6 +10,9 @@ rules:
 - apiGroups: [""]
   resources: ["pods/exec"]
   verbs: ["create"]
+- apiGroups: [""]
+  resources: ["pods/log"]
+  verbs: ["get"]
 
 ---
 # https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/
