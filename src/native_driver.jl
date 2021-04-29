@@ -125,6 +125,7 @@ function Distributed.launch(manager::K8sClusterManager, params::Dict, launched::
             config.host = pod["status"]["podIP"]
             config.port = WORKER_PORT
             config.userdata = (; pod_name=pod_name)
+
             push!(launched, config)
             notify(c)
         end
@@ -138,6 +139,16 @@ function Distributed.manage(manager::K8sClusterManager, id::Integer, config::Wor
         # Note: Labelling the pod with the worker ID is only a nice-to-have. We may want to
         # make this fail gracefully if "patch" access is unavailable.
         label_pod(pod_name, "worker-id" => id)
+
+        # Redirect any stdout/stderr from the worker to be displayed on the manager. Note:
+        # The `start_worker` call via `--worker` automatically redirects stderr to stdout.
+        p = kubectl() do exe
+            open(detach(`$exe logs -f pod/$pod_name`), "r+")
+        end
+        readline(p.out)  # Ignore initial output: "julia_worker:<port>#<ip>"
+
+        config.io = p.out
+        redirect_worker_output(id, config.io)
 
     elseif op === :interrupt
         os_pid = config.ospid
