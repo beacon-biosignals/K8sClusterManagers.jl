@@ -219,6 +219,7 @@ function worker_pod_spec!(pod::AbstractDict;
         rdict("name" => "worker",
               "image" => image,
               "command" => collect(cmd),
+              "stdin" => true,
               "resources" => rdict("requests" => rdict("cpu" => cpu,
                                                        "memory" => memory),
                                    "limits"   => rdict("cpu" => cpu,

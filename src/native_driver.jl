@@ -87,7 +87,7 @@ function Distributed.launch(manager::K8sClusterManager, params::Dict, launched::
     exename = params[:exename]
     exeflags = params[:exeflags]
 
-    worker_code = "using Distributed; sleep(10); start_worker($(repr(cluster_cookie())))"
+    worker_code = "using Distributed; cookie = readline(stdin); @show cookie; start_worker(cookie)"
     cmd = `$exename $exeflags -e $worker_code`
 
     worker_manifest = @static if VERSION >= v"1.5"
@@ -114,8 +114,9 @@ function Distributed.launch(manager::K8sClusterManager, params::Dict, launched::
             @info "$pod_name is up"
 
             p = kubectl() do exe
-                open(detach(`$exe attach pod/$pod_name -c=worker`), "r+")
+                open(detach(`$exe attach -i pod/$pod_name -c=worker`), "r+")
             end
+            write_cookie(p)
 
             config = WorkerConfig()
             config.io = p.out

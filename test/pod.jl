@@ -103,7 +103,7 @@ end
     @test length(pod["spec"]["containers"]) == 1
 
     worker = pod["spec"]["containers"][1]
-    @test keys(worker) == Set(["name", "image", "command", "resources"])
+    @test keys(worker) == Set(["name", "image", "command", "resources", "stdin"])
     @test worker["name"] == "worker"
     @test worker["image"] == "julia"
     @test worker["command"] == ["julia"]
@@ -111,6 +111,7 @@ end
     @test worker["resources"]["requests"]["memory"] == DEFAULT_WORKER_MEMORY
     @test worker["resources"]["limits"]["cpu"] == DEFAULT_WORKER_CPU
     @test worker["resources"]["limits"]["memory"] == DEFAULT_WORKER_MEMORY
+    @test worker["stdin"] == true
 end
 
 @testset "isk8s" begin
