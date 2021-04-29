@@ -9,39 +9,43 @@ A Julia cluster manager for provisioning workers in a Kubernetes (k8s) cluster.
 
 ## K8sClusterManager
 
-This is a `ClusterManager` for usage from a driver Julia session that:
-- is running on the cluster already.
-- has access to a working `kubectl` (from the julia-running-in-k8s-container context)
+The `K8sClusterManager` is intended to be used from a pod running inside a Kubernetes
+cluster.
 
-Assuming you have `kubectl` installed locally and configured to connect to a cluster using
-the namespace of your choice, you can easily set yourself up with just such a julia session
-by running for example `kubectl run example-driver-pod -it --image julia:1.5.3`.
+Assuming you have `kubectl` installed locally and configured to connect to a cluster, you
+can easily create an interactive Julia REPL session running from within the cluster by
+executing:
 
-Or equivalently, the following `driver.yaml` file containing a pod spec
+```sh
+kubectl run -it example-manager-pod --image julia:1
+```
+
+Or equivalently, using a k8s manifest named `example-manager-pod.yaml` containing:
 
 ```yaml
 apiVersion: v1
 kind: Pod
 metadata:
-  name: example-driver-pod
+  name: example-manager-pod
 spec:
   containers:
-    - name: driver
-      image: julia:1.5.3
-      stdin: true
-      tty: true
+  - name: manager
+    image: julia:1
+    stdin: true
+    tty: true
 ```
 
-Running the following will drop you into a Julia REPL running Kubernetes pod:
+and running the following commands will also create a Julia REPL running inside a Kubernetes
+pod:
 
 ```sh
-kubectl apply -f driver.yaml
+kubectl apply -f example-manager-pod.yaml
 
 # Once the pod is running
-kubectl attach -it pod/example-driver-pod -c driver
+kubectl attach -it pod/example-driver-pod
 ```
 
-Now in this Julia REPL session, you can do:
+Now in this Julia REPL session, you can do add two workers via:
 
 ```julia
 julia> using Pkg; Pkg.add("K8sClusterManagers")
@@ -54,12 +58,12 @@ julia> addprocs(K8sClusterManager(2))
 ### Advanced configuration
 
 `K8sClusterManager` exposes a `configure` keyword argument that can be used to make
-modifications to the pod spec defining workers.
+modifications to the pod manifest when defining workers.
 
-When launching the cluster the function `configure(pod)` will be called where `pod` is a
-`Kuber.jl` object representing a pod spec. The function must return an object of the same
-type. `Kuber.jl` makes it convenient to manipulate this `pod`, by letting you do things such
-as:
+When launching the cluster the function `configure(pod)` will be called where `pod` is an
+dict-object representing the YAML/JSON pod manifest. The function must return an object of
+the same type. For example if you wanted to change the workers to require GPU resources you
+could write the following:
 
 ```julia
 function my_gpu_configurator(pod)
@@ -69,14 +73,13 @@ function my_gpu_configurator(pod)
 end
 ```
 
-To get an example instance of `pod` that might be passed into the `configure`, call
+To get an example instance of `pod` objects that might be passed into the `configure`, call
 
 ```julia
 using K8sClusterManagers, JSON
-pod = K8sClusterManagers.worker_pod_spec(port=8080, cmd=`julia`, driver_name="driver", image="julia")
+pod = K8sClusterManagers.worker_pod_spec(driver_name="driver", image="julia", cmd=`julia`)
 JSON.print(pod, 4)
 ```
-
 
 ## Useful Commands
 
