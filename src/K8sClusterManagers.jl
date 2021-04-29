@@ -1,8 +1,7 @@
 module K8sClusterManagers
 
 using DataStructures: DefaultOrderedDict, OrderedDict
-using Distributed: Distributed, ClusterManager, WorkerConfig, cluster_cookie,
-    redirect_worker_output
+using Distributed: Distributed, ClusterManager, WorkerConfig, cluster_cookie
 using JSON: JSON
 using Mocking: Mocking, @mock
 using kubectl_jll
