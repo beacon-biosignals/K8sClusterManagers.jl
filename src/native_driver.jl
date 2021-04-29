@@ -87,8 +87,7 @@ function Distributed.launch(manager::K8sClusterManager, params::Dict, launched::
     exename = params[:exename]
     exeflags = params[:exeflags]
 
-    worker_code = "using Distributed; cookie = readline(stdin); @show cookie; start_worker(cookie)"
-    cmd = `$exename $exeflags -e $worker_code`
+    cmd = `$exename $exeflags --worker`
 
     worker_manifest = @static if VERSION >= v"1.5"
         worker_pod_spec(manager; cmd)
@@ -98,6 +97,13 @@ function Distributed.launch(manager::K8sClusterManager, params::Dict, launched::
 
     # Note: User-defined `configure` function may or may-not be mutating
     worker_manifest = manager.configure(worker_manifest)
+
+    # Without stdin the `kubectl attach -i` process will be unable to send the cluster
+    # cookie to the worker.
+    # Note: Assumes worker pod uses only a single container
+    if !get(worker_manifest["spec"]["containers"][1], "stdin", false)
+        error("Worker pod container must enable support for stdin")
+    end
 
     @sync for i in 1:manager.np
         @async begin
@@ -113,9 +119,19 @@ function Distributed.launch(manager::K8sClusterManager, params::Dict, launched::
 
             @info "$pod_name is up"
 
+            # We'll ignore stderr as `kubectl attach` always outputs:
+            # "If you don't see a command prompt, try pressing enter."
+            # TODO: Ideally we would just ignore this line and report anything else but
+            # unfortunately using an `IOBuffer` here never seems to capture any output.
+            #
+            # Note: The `start_worker` function by default redirects stderr to stdout which
+            # means the stderr captured here should entirely be from `kubectl` (or possibly
+            # from the worker if an error occurred before `start_worker`).
             p = kubectl() do exe
-                open(detach(`$exe attach -i pod/$pod_name -c=worker`), "r+")
+                attach_cmd = `$exe attach -i pod/$pod_name -c=worker`
+                open(pipeline(detach(attach_cmd), stderr=stderr), "r+")
             end
+
             write_cookie(p)
 
             config = WorkerConfig()

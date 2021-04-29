@@ -204,7 +204,6 @@ let job_name = "test-success"
         call_matches = collect(eachmatch(POD_NAME_REGEX, manager_log))
         output_matches = collect(eachmatch(POD_OUTPUT_REGEX, manager_log))
 
-
         test_results = [
             @test get_job(job_name, jsonpath="{.status..type}") == "Complete"
 
