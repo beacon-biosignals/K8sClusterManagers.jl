@@ -1,10 +1,6 @@
 const DEFAULT_WORKER_CPU = 1
 const DEFAULT_WORKER_MEMORY = "4Gi"
 
-# Port number listened to by workers. The port number was randomly chosen from the ephemeral
-# port range: 49152-65535.
-const WORKER_PORT = 51400
-
 # Notifies tasks that the abnormal worker deregistration warning has been emitted
 const DEREGISTER_ALERT = Condition()
 
@@ -91,9 +87,8 @@ function Distributed.launch(manager::K8sClusterManager, params::Dict, launched::
     exename = params[:exename]
     exeflags = params[:exeflags]
 
-    # Note: We currently use the same port number for all workers but this isn't strictly
-    # required.
-    cmd = `$exename $exeflags --worker=$(cluster_cookie()) --bind-to=0:$WORKER_PORT`
+    worker_code = "using Distributed; sleep(10); start_worker($(repr(cluster_cookie())))"
+    cmd = `$exename $exeflags -e $worker_code`
 
     worker_manifest = @static if VERSION >= v"1.5"
         worker_pod_spec(manager; cmd)
@@ -108,6 +103,7 @@ function Distributed.launch(manager::K8sClusterManager, params::Dict, launched::
         @async begin
             pod_name = create_pod(worker_manifest)
 
+
             pod = try
                 wait_for_running_pod(pod_name; timeout=manager.pending_timeout)
             catch e
@@ -115,16 +111,16 @@ function Distributed.launch(manager::K8sClusterManager, params::Dict, launched::
                 rethrow()
             end
 
-            # Wait a few seconds to allow the worker to start listening to connections at
-            # expected port. If we don't wait long enough we will see a "connection refused"
-            # error (https://github.com/beacon-biosignals/K8sClusterManagers.jl/issues/46)
             @info "$pod_name is up"
-            sleep(4)
+
+            p = kubectl() do exe
+                open(detach(`$exe attach pod/$pod_name -c=worker`), "r+")
+            end
 
             config = WorkerConfig()
-            config.host = pod["status"]["podIP"]
-            config.port = WORKER_PORT
+            config.io = p.out
             config.userdata = (; pod_name=pod_name)
+
             push!(launched, config)
             notify(c)
         end
