@@ -29,6 +29,11 @@ const TEST_IMAGE = get(ENV, "K8S_CLUSTER_MANAGERS_TEST_IMAGE", "k8s-cluster-mana
 
 const POD_NAME_REGEX = r"Worker pod (?<worker_id>\d+): (?<pod_name>[a-z0-9.-]+)"
 
+# Note: Regex should be generic enough to capture any stray output from the workers
+const POD_OUTPUT_REGEX = r"From worker (?<worker_id>\d+):\s+(?<output>.*?)\r?\n"
+
+const PROMPT_HINT = "If you don't see a command prompt, try pressing enter."
+
 # As a convenience we'll automatically build the Docker image when a user uses `Pkg.test()`.
 # If the environmental variable is set we expect the Docker image has already been built.
 if !haskey(ENV, "K8S_CLUSTER_MANAGERS_TEST_IMAGE")
@@ -165,12 +170,17 @@ let job_name = "test-success"
                 pod["spec"]["containers"][1]["imagePullPolicy"] = "Never"
                 return pod
             end
-            addprocs(K8sClusterManager(1; configure, pending_timeout=60, cpu="0.5", memory="300Mi"))
+            pids = addprocs(K8sClusterManager(1; configure, pending_timeout=60, cpu="0.5", memory="300Mi"))
 
             println("Num Processes: ", nprocs())
             for i in workers()
                 # Return the name of the pod via HOSTNAME
                 println("Worker pod \$i: ", remotecall_fetch(() -> ENV["HOSTNAME"], i))
+            end
+
+            # Ensure that stdout/stderr on the worker is displayed on the manager
+            @everywhere pids begin
+                println(ENV["HOSTNAME"])
             end
             """
 
@@ -191,7 +201,8 @@ let job_name = "test-success"
         worker_pod = first(pod_names("manager" => manager_pod))
 
         manager_log = pod_logs(manager_pod)
-        matches = collect(eachmatch(POD_NAME_REGEX, manager_log))
+        call_matches = collect(eachmatch(POD_NAME_REGEX, manager_log))
+        output_matches = collect(eachmatch(POD_OUTPUT_REGEX, manager_log))
 
         test_results = [
             @test get_job(job_name, jsonpath="{.status..type}") == "Complete"
@@ -202,9 +213,16 @@ let job_name = "test-success"
             @test pod_phase(manager_pod) == "Succeeded"
             @test pod_phase(worker_pod) == "Succeeded"
 
-            @test length(matches) == 1
-            @test matches[1][:worker_id] == "2"
-            @test matches[1][:pod_name] == worker_pod
+            @test length(call_matches) == 1
+            @test call_matches[1][:worker_id] == "2"
+            @test call_matches[1][:pod_name] == worker_pod
+
+            @test length(output_matches) == 1
+            @test output_matches[1][:worker_id] == "2"
+            @test output_matches[1][:output] == worker_pod
+
+            # `kubectl attach` reports this warning
+            @test_broken !occursin(PROMPT_HINT, manager_log)
 
             # Ensure there are no unexpected error messages in the log
             @test !occursin(r"\bError\b"i, manager_log)
@@ -321,7 +339,7 @@ let job_name = "test-interrupt"
             @test pod_phase(worker_pod) == "Failed"
 
             # Ensure there are no unexpected error messages in the log
-            @test !occursin(r"\bError\b"i, manager_log)
+            @test length(collect(eachmatch(r"\bError\b"i, manager_log))) == 1
         ]
 
         # Display details to assist in debugging the failure
