@@ -77,7 +77,7 @@ To get an example instance of `pod` objects that might be passed into the `confi
 
 ```julia
 using K8sClusterManagers, JSON
-pod = K8sClusterManagers.worker_pod_spec(port=8080, cmd=`julia`, driver_name="driver", image="julia")
+pod = K8sClusterManagers.worker_pod_spec(driver_name="driver", image="julia", cmd=`julia`)
 JSON.print(pod, 4)
 ```
 
