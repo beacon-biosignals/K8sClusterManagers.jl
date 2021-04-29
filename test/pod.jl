@@ -87,7 +87,7 @@ end
 end
 
 @testset "worker_pod_spec" begin
-    kwargs = (; cmd=`julia`, driver_name="driver", image="julia")
+    kwargs = (; manager_name="test", image="julia", cmd=`julia`)
     pod = K8sClusterManagers.worker_pod_spec(; kwargs...)
 
     @test keys(pod) == Set(["apiVersion", "kind", "metadata", "spec"])
@@ -95,9 +95,9 @@ end
     @test pod["kind"] == "Pod"
 
     @test keys(pod["metadata"]) == Set(["generateName", "labels"])
-    @test pod["metadata"]["generateName"] == "driver-worker-"
+    @test pod["metadata"]["generateName"] == "test-worker-"
     @test keys(pod["metadata"]["labels"]) == Set(["manager"])
-    @test pod["metadata"]["labels"]["manager"] == "driver"
+    @test pod["metadata"]["labels"]["manager"] == "test"
 
     @test pod["spec"]["restartPolicy"] == "Never"
     @test length(pod["spec"]["containers"]) == 1
