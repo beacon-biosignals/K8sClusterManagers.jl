@@ -204,16 +204,16 @@ function worker_pod_spec(pod::AbstractDict=POD_TEMPLATE; kwargs...)
 end
 
 function worker_pod_spec!(pod::AbstractDict;
+                          manager_name::AbstractString,
+                          image::AbstractString,
                           cmd::Cmd,
-                          driver_name::String,
-                          image::String,
                           cpu=DEFAULT_WORKER_CPU,
                           memory=DEFAULT_WORKER_MEMORY,
                           service_account_name=nothing)
-    pod["metadata"]["generateName"] = "$(driver_name)-worker-"
+    pod["metadata"]["generateName"] = "$(manager_name)-worker-"
 
     # Set a label with the manager name to support easy termination of all workers
-    pod["metadata"]["labels"]["manager"] = driver_name
+    pod["metadata"]["labels"]["manager"] = manager_name
 
     worker_container =
         rdict("name" => "worker",
