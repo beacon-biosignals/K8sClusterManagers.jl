@@ -10,6 +10,7 @@ Mocking = "78c3b35d-d492-501b-9361-3d52fe80e533"
 kubectl_jll = "ed23c2a5-89c4-5d52-b0ca-9d53aadf8c45"
 
 [compat]
+DataStructures = "0.18"
 JSON = "0.21"
 Mocking = "0.7"
 Mustache = "1"
