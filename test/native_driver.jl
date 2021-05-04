@@ -11,3 +11,8 @@
         end
     end
 end
+
+@testset "TimeoutException" begin
+    e = K8sClusterManagers.TimeoutException("time out!")
+    @test sprint(showerror, e) == "TimeoutException: time out!"
+end
