@@ -75,6 +75,8 @@ struct TimeoutException <: Exception
     msg::String
 end
 
+Base.showerror(io::IO, e::TimeoutException) = print(io, "TimeoutException: ", e.msg)
+
 function worker_pod_spec(manager::K8sClusterManager; kwargs...)
     pod = worker_pod_spec(; manager_name=manager.pod_name,
                           image=manager.image,
