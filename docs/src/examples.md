@@ -1,14 +1,15 @@
 Examples
 ========
 
-The K8sClusterManager is intended to be used inside a pod running on a Kubernetes cluster.
+The [`K8sClusterManager`](@ref) is intended to be used inside a [_Pod_](https://kubernetes.io/docs/concepts/workloads/pods/)
+running on a Kubernetes cluster.
 
 ## Launching an interactive session
 
-The following manifest will create a [Kubernetes job](https://kubernetes.io/docs/concepts/workloads/controllers/job/)
-named "interactive-session". This job will spawn a pod (see `spec.template.spec`) which will
+The following manifest will create a Kubernetes [_Job_](https://kubernetes.io/docs/concepts/workloads/controllers/job/)
+named "interactive-session". This _Job_ will spawn a _Pod_ (see `spec.template.spec`) which will
 run an interactive Julia session with the latest release of K8sClusterManagers.jl installed.
-Be sure to create the required [service account and associated permissions](../patterns/#required-permissions)
+Be sure to create the required [_Service Account_ and associated permissions](../patterns/#required-permissions)
 before proceeding.
 
 ````@eval
@@ -20,7 +21,7 @@ $(read("interactive-session.yaml", String))
 """)
 ````
 
-To start the job and attach to the interactive Julia session you can run the following:
+To start the _Job_ and attach to the interactive Julia session you can run the following:
 
 ```sh
 # Executed from the K8sClusterManager.jl root directory
@@ -63,7 +64,7 @@ julia> pmap(x -> myid(), 1:nworkers())  # Each worker reports its worker ID
 ### Pending workers
 
 A common issue when spawning workers is not having enough resources available to start the
-workers. Worker pods which cannot be started will be stuck in the "Pending" phase and will
+workers. Worker _Pods_ which cannot be started will be stuck in the "Pending" phase and will
 wait until resources become available. Since it is not known how long a worker may be stuck
 in the "Pending" phase the [`K8sClusterManager`](@ref) includes the `pending_timeout`
 keyword which specifies how long you are willing to wait for pending workers. Once this
@@ -94,7 +95,7 @@ Int64[]
 ### Termination Reason
 
 When Julia workers [exceed the specified memory limit](https://kubernetes.io/docs/tasks/configure-pod-container/assign-memory-resource/#exceed-a-container-s-memory-limit)
-the worker pod will be automatically killed by Kubernetes (Out-Of-Memory). In such a
+the worker _Pod_ will be automatically killed by Kubernetes (OOMKilled). In such a
 scenario the worker will be reported as terminated by Distributed.jl without details.
 K8sClusterManagers.jl will provide the reason, as reported by k8s, for the termination of
 the worker:
