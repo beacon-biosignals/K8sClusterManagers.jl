@@ -1,7 +1,7 @@
 Workflow Patterns
 =================
 
-## Permissions
+## Required Permissions
 
 K8sClusterManagers.jl requires a minimal set of permisisons for managing worker pods within
 the cluster. A minimal set of permissions is documented below along with a service account
