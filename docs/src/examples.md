@@ -39,7 +39,7 @@ kubectl attach -it pod/${manager_pod?}
 ### Launching workers
 
 Once you've attached to the interactive session you can use [`K8sClusterManager`](@ref) to
-spawn k8s workers. For our example we'll be using a small amount of CPU/Memory to ensure
+spawn K8s workers. For our example we'll be using a small amount of CPU/Memory to ensure
 workers can be spawned even on clusters with limited resources:
 
 ```julia
@@ -97,7 +97,7 @@ Int64[]
 When Julia workers [exceed the specified memory limit](https://kubernetes.io/docs/tasks/configure-pod-container/assign-memory-resource/#exceed-a-container-s-memory-limit)
 the worker _Pod_ will be automatically killed by Kubernetes (OOMKilled). In such a
 scenario the worker will be reported as terminated by Distributed.jl without details.
-K8sClusterManagers.jl will provide the reason, as reported by k8s, for the termination of
+K8sClusterManagers.jl will provide the reason, as reported by K8s, for the termination of
 the worker:
 
 ```julia

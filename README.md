@@ -5,7 +5,7 @@
 [![Docs: stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://beacon-biosignals.github.io/K8sClusterManagers.jl/stable)
 [![Docs: development](https://img.shields.io/badge/docs-dev-blue.svg)](https://beacon-biosignals.github.io/K8sClusterManagers.jl/dev)
 
-A Julia cluster manager for provisioning workers in a Kubernetes (k8s) cluster.
+A Julia cluster manager for provisioning workers in a Kubernetes (K8s) cluster.
 
 ## K8sClusterManager
 
@@ -20,7 +20,7 @@ executing:
 kubectl run -it example-manager-pod --image julia:1
 ```
 
-Or equivalently, using a k8s manifest named `example-manager-pod.yaml` containing:
+Or equivalently, using a K8s manifest named `example-manager-pod.yaml` containing:
 
 ```yaml
 apiVersion: v1

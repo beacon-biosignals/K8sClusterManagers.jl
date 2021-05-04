@@ -20,7 +20,7 @@ $(read("julia-manager-serviceaccount.yaml", String))
 
 Since the [`K8sClusterManager`](@ref) can only be used when running inside of a Kubernetes
 _Pod_ you may want conditionally use it. The [`isk8s`](@ref) predicate provides a convenient
-way of determining if the running Julia process is executing within a k8s _Pod_.
+way of determining if the running Julia process is executing within a K8s _Pod_.
 
 ```julia
 using Distributed, K8sClusterManagers
@@ -36,7 +36,7 @@ addprocs(manager; exeflags="--project")
 
 ## Executing a script
 
-Depending on your use case you may find yourself wanting to execute a script on the k8s
+Depending on your use case you may find yourself wanting to execute a script on the K8s
 cluster. One basic workflow would be as follows.
 
 1. Write a "script.jl" which uses `K8sClusterManager`
