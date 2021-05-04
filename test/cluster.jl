@@ -412,3 +412,60 @@ let job_name = "test-oom"
         end
     end
 end
+
+let job_name = "test-pending-timeout"
+    @testset "$job_name" begin
+        code = """
+            using Distributed, K8sClusterManagers
+
+            # Avoid trying to pull local-only image
+            function configure(pod)
+                pod["spec"]["containers"][1]["imagePullPolicy"] = "Never"
+                return pod
+            end
+
+            # Request 1 exbibyte of memory (should always fail)
+            mgr = K8sClusterManager(1; configure, pending_timeout=1, memory="1Ei")
+            pids = addprocs(mgr)
+
+            println("Num Processes: ", nprocs())
+            for i in pids
+                # Return the name of the pod via HOSTNAME
+                println("Worker pod \$i: ", remotecall_fetch(() -> ENV["HOSTNAME"], i))
+            end
+            """
+
+        command = ["julia"]
+        args = ["-e", escape_yaml_string(code)]
+        manifest = render(JOB_TEMPLATE; job_name, image=TEST_IMAGE, command, args)
+        k8s_create(IOBuffer(manifest))
+
+        # Wait for job to reach status: "Complete" or "Failed".
+        @info "Waiting for $job_name job. This could take up to 4 minutes..."
+        wait_job(job_name, condition=!isempty, timeout=4 * 60)
+
+        manager_pod = first(pod_names("job-name" => job_name))
+
+        manager_log = pod_logs(manager_pod)
+        call_matches = collect(eachmatch(POD_NAME_REGEX, manager_log))
+
+        test_results = [
+            @test get_job(job_name, jsonpath="{.status..type}") == "Complete"
+
+            @test pod_exists(manager_pod)
+            @test pod_phase(manager_pod) == "Succeeded"
+
+            @test length(call_matches) == 0
+
+            @test occursin(r"timed out after waiting for worker", manager_log)
+
+            # Ensure there are no unexpected error messages in the log
+            @test !occursin(r"\bError\b"i, manager_log)
+        ]
+
+        # Display details to assist in debugging the failure
+        if any(r -> !(r isa Test.Pass || r isa Test.Broken), test_results)
+            report(job_name, "manager" => manager_pod)
+        end
+    end
+end
