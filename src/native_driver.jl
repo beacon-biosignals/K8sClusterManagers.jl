@@ -107,24 +107,30 @@ function Distributed.launch(manager::K8sClusterManager, params::Dict, launched::
             pod = try
                 wait_for_running_pod(pod_name; timeout=manager.pending_timeout)
             catch e
+                e isa TimeoutException || rethrow()
+
                 delete_pod(pod_name; wait=false)
-                rethrow()
+                @warn sprint(showerror, e)
+                nothing
             end
 
-            @info "$pod_name is up"
+            if pod !== nothing
+                @info "$pod_name is up"
 
-            # Redirect any stdout/stderr from the worker to be displayed on the manager.
-            # Note: `start_worker` (via `--worker`) automatically redirects stderr to stdout
-            p = kubectl() do exe
-                open(detach(`$exe logs -f pod/$pod_name`), "r+")
+                # Redirect any stdout/stderr from the worker to be displayed on the manager.
+                # Note: `start_worker` (via `--worker`) automatically redirects stderr to
+                # stdout.
+                p = kubectl() do exe
+                    open(detach(`$exe logs -f pod/$pod_name`), "r+")
+                end
+
+                config = WorkerConfig()
+                config.io = p.out
+                config.userdata = (; pod_name=pod_name)
+
+                push!(launched, config)
+                notify(c)
             end
-
-            config = WorkerConfig()
-            config.io = p.out
-            config.userdata = (; pod_name=pod_name)
-
-            push!(launched, config)
-            notify(c)
         end
     end
 end
