@@ -2,7 +2,7 @@ using Documenter
 using K8sClusterManagers
 
 makedocs(modules=[K8sClusterManagers],
-         sitename="K8sClusterManagers",
+         sitename="K8sClusterManagers.jl",
          authors="Beacon Biosignals and other contributors",
          pages=["API Documentation" => "index.md"])
 
