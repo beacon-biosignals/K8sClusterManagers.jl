@@ -3,8 +3,8 @@ Workflow Patterns
 
 ## Required Permissions
 
-K8sClusterManagers.jl requires a minimal set of permisisons for managing worker _Pod_s within
-the cluster. A minimal set of permissions is documented below along with a _Service Account_
+K8sClusterManagers.jl requires a minimal set of permisisons for managing worker Pods within
+the cluster. A minimal set of permissions is documented below along with a ServiceAccount
 to make use of these permissions:
 
 ````@eval
@@ -19,8 +19,8 @@ $(read("julia-manager-serviceaccount.yaml", String))
 ## Use K8sClusterManager only within cluster
 
 Since the [`K8sClusterManager`](@ref) can only be used when running inside of a Kubernetes
-_Pod_ you may want conditionally use it. The [`isk8s`](@ref) predicate provides a convenient
-way of determining if the running Julia process is executing within a K8s _Pod_.
+Pod you may want conditionally use it. The [`isk8s`](@ref) predicate provides a convenient
+way of determining if the running Julia process is executing within a K8s Pod.
 
 ```julia
 using Distributed, K8sClusterManagers
