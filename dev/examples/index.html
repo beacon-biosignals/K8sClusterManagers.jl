@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Examples · K8sClusterManagers.jl</title><link href="https://fonts.googleapis.com/css?family=Lato|Roboto+Mono" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.0/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.0/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.0/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.11.1/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL=".."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../assets/documenter.js"></script><script src="../siteinfo.js"></script><script src="../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit">K8sClusterManagers.jl</span></div><form class="docs-search" action="../search/"><input class="docs-search-query" id="documenter-search-query" name="q" type="text" placeholder="Search docs"/></form><ul class="docs-menu"><li><a class="tocitem" href="../">Home</a></li><li class="is-active"><a class="tocitem" href>Examples</a><ul class="internal"><li><a class="tocitem" href="#Launching-an-interactive-session"><span>Launching an interactive session</span></a></li></ul></li><li><a class="tocitem" href="../patterns/">Workflow Patterns</a></li><li><a class="tocitem" href="../api/">API Documentation</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><nav class="breadcrumb"><ul class="is-hidden-mobile"><li class="is-active"><a href>Examples</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Examples</a></li></ul></nav><div class="docs-right"><a class="docs-edit-link" href="https://github.com/beacon-biosignals/K8sClusterManagers.jl/blob/master/docs/src/examples.md" title="Edit on GitHub"><span class="docs-icon fab"></span><span class="docs-label is-hidden-touch">Edit on GitHub</span></a><a class="docs-settings-button fas fa-cog" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-sidebar-button fa fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a></div></header><article class="content" id="documenter-page"><h1 id="Examples"><a class="docs-heading-anchor" href="#Examples">Examples</a><a id="Examples-1"></a><a class="docs-heading-anchor-permalink" href="#Examples" title="Permalink"></a></h1><p>The <a href="../api/#K8sClusterManagers.K8sClusterManager"><code>K8sClusterManager</code></a> is intended to be used inside a <a href="https://kubernetes.io/docs/concepts/workloads/pods/">Pod</a> running on a Kubernetes cluster.</p><h2 id="Launching-an-interactive-session"><a class="docs-heading-anchor" href="#Launching-an-interactive-session">Launching an interactive session</a><a id="Launching-an-interactive-session-1"></a><a class="docs-heading-anchor-permalink" href="#Launching-an-interactive-session" title="Permalink"></a></h2><p>The following manifest will create a Kubernetes <a href="https://kubernetes.io/docs/concepts/workloads/controllers/job/">Job</a> named &quot;interactive-session&quot;. This Job will spawn a Pod (see <code>spec.template.spec</code>) which will run an interactive Julia session with the latest release of K8sClusterManagers.jl installed. Be sure to create the required <a href="../patterns/#required-permissions">ServiceAccount and associated permissions</a> before proceeding.</p><pre><code class="language-yaml"># https://kubernetes.io/docs/concepts/workloads/controllers/job/
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: interactive-session
+spec:
+  # Stop the job from spawning a new pod if the container exits in error
+  backoffLimit: 0
+
+  # Clean up completed jobs automatically after 10 seconds
+  ttlSecondsAfterFinished: 10
+
+  template:
+    spec:
+      # Previously created service account
+      serviceAccountName: julia-manager-serviceaccount
+      restartPolicy: Never
+      containers:
+      - name: manager
+        image: julia
+        stdin: true
+        tty: true
+
+        # Enough resources to handle package precompilation
+        resources:
+          requests:
+            cpu: 1
+            memory: 500Mi
+
+        # Avoid hitting resource limits during package precompilation
+        env:
+          - name: JULIA_NUM_PRECOMPILE_TASKS
+            value: &quot;1&quot;
+
+        # Automatically install K8sClusterManagers.jl on &quot;julia&quot; Docker image
+        command: [&quot;bash&quot;, &quot;-c&quot;, &quot;julia -e &#39;using Pkg; Pkg.add(\&quot;K8sClusterManagers\&quot;)&#39;; exec julia&quot;]
+</code></pre><p>To start the Job and attach to the interactive Julia session you can run the following:</p><pre><code class="language-sh"># Executed from the K8sClusterManager.jl root directory
+kubectl apply -f docs/src/interactive-session.yaml
+
+# Determine the generated pod name from the job
+manager_pod=$(kubectl get pods -l job-name=interactive-session --output=jsonpath=&#39;{.items[*].metadata.name}&#39;)
+echo $manager_pod
+
+# Attach to the interactive Julia session running in the pod.
+# Note: You may need to wait for K8sClusterManagers.jl to finish installing
+kubectl attach -it pod/${manager_pod?}</code></pre><h3 id="Launching-workers"><a class="docs-heading-anchor" href="#Launching-workers">Launching workers</a><a id="Launching-workers-1"></a><a class="docs-heading-anchor-permalink" href="#Launching-workers" title="Permalink"></a></h3><p>Once you&#39;ve attached to the interactive session you can use <a href="../api/#K8sClusterManagers.K8sClusterManager"><code>K8sClusterManager</code></a> to spawn K8s workers. For our example we&#39;ll be using a small amount of CPU/Memory to ensure workers can be spawned even on clusters with limited resources:</p><pre><code class="language-julia">julia&gt; using Distributed, K8sClusterManagers
+
+julia&gt; addprocs(K8sClusterManager(3, cpu=0.2, memory=&quot;300Mi&quot;, pending_timeout=30))
+[ Info: interactive-example-sp28h-worker-7dvpt is up
+[ Info: interactive-example-sp28h-worker-vvrwm is up
+[ Info: interactive-example-sp28h-worker-bczm5 is up
+3-element Vector{Int64}:
+ 2
+ 3
+ 4
+
+julia&gt; pmap(x -&gt; myid(), 1:nworkers())  # Each worker reports its worker ID
+3-element Vector{Int64}:
+ 3
+ 4
+ 2</code></pre><h3 id="Pending-workers"><a class="docs-heading-anchor" href="#Pending-workers">Pending workers</a><a id="Pending-workers-1"></a><a class="docs-heading-anchor-permalink" href="#Pending-workers" title="Permalink"></a></h3><p>A worker created via <code>addprocs</code> may not necessarily be available right away, as K8s must schedule the worker&#39;s Pod to a Node before the corresponding Julia process can start. If K8s can&#39;t schedule the worker&#39;s Pod to a Node right away (e.g. not enough resources are available), then that Pod will sit around in the &quot;Pending&quot; phase until it can be scheduled. Since a worker Pod may be stuck in this &quot;Pending&quot; phase for an indefinite amount of time, <a href="../api/#K8sClusterManagers.K8sClusterManager"><code>K8sClusterManager</code></a> includes the <code>pending_timeout</code> keyword that may used to specify how long you are willing to wait for pending workers. Once this timeout has been reached, the manager will continue with the subset of workers which have reported in and delete any workers that are stuck in the &quot;Pending&quot; phase.</p><pre><code class="language-julia">julia&gt; addprocs(K8sClusterManager(1, memory=&quot;1Ei&quot;, pending_timeout=10))  # Request 1 exbibyte of memory
+┌ Warning: TimeoutException: timed out after waiting for worker interactive-session-d7jfb-worker-ffvnm to start for 10 seconds, with status:
+│ {
+│     &quot;conditions&quot;: [
+│         {
+│             &quot;lastProbeTime&quot;: null,
+│             &quot;lastTransitionTime&quot;: &quot;2021-05-04T19:07:19Z&quot;,
+│             &quot;message&quot;: &quot;0/1 nodes are available: 1 Insufficient memory.&quot;,
+│             &quot;reason&quot;: &quot;Unschedulable&quot;,
+│             &quot;status&quot;: &quot;False&quot;,
+│             &quot;type&quot;: &quot;PodScheduled&quot;
+│         }
+│     ],
+│     &quot;phase&quot;: &quot;Pending&quot;,
+│     &quot;qosClass&quot;: &quot;Guaranteed&quot;
+│ }
+└ @ K8sClusterManagers ~/.julia/dev/K8sClusterManagers/src/native_driver.jl:113
+Int64[]</code></pre><h3 id="Termination-Reason"><a class="docs-heading-anchor" href="#Termination-Reason">Termination Reason</a><a id="Termination-Reason-1"></a><a class="docs-heading-anchor-permalink" href="#Termination-Reason" title="Permalink"></a></h3><p>When Julia workers <a href="https://kubernetes.io/docs/tasks/configure-pod-container/assign-memory-resource/#exceed-a-container-s-memory-limit">exceed the specified memory limit</a> the worker Pod will be automatically killed by Kubernetes (OOMKilled). In such a scenario the worker will be reported as terminated by Distributed.jl without details. K8sClusterManagers.jl will provide the reason, as reported by K8s, for the termination of the worker:</p><pre><code class="language-julia">julia&gt; @everywhere begin
+           function oom(T=Int64)
+               max_elements = Sys.total_memory() ÷ sizeof(T)
+               fill(zero(T), max_elements + 1)
+           end
+       end
+
+julia&gt; remotecall_fetch(oom, last(workers()))
+Worker 4 terminated.ERROR:
+ProcessExitedException(4)
+Stacktrace:
+  [1] try_yieldto(undo::typeof(Base.ensure_rescheduled))
+    @ Base ./task.jl:705
+  [2] wait
+    @ ./task.jl:764 [inlined]
+  [3] wait(c::Base.GenericCondition{ReentrantLock})
+    @ Base ./condition.jl:106
+  [4] take_buffered(c::Channel{Any})
+    @ Base ./channels.jl:389
+  [5] take!(c::Channel{Any})
+    @ Base ./channels.jl:383
+  [6] take!(::Distributed.RemoteValue)
+    @ Distributed /buildworker/worker/package_linuxaarch64/build/usr/share/julia/stdlib/v1.6/Distributed/src/remotecall.jl:599
+  [7] #remotecall_fetch#143
+    @ /buildworker/worker/package_linuxaarch64/build/usr/share/julia/stdlib/v1.6/Distributed/src/remotecall.jl:390 [inlined]
+  [8] remotecall_fetch(::Function, ::Distributed.Worker)
+    @ Distributed /buildworker/worker/package_linuxaarch64/build/usr/share/julia/stdlib/v1.6/Distributed/src/remotecall.jl:386
+  [9] remotecall_fetch(::Function, ::Int64; kwargs::Base.Iterators.Pairs{Union{}, Union{}, Tuple{}, NamedTuple{(), Tuple{}}})
+    @ Distributed /buildworker/worker/package_linuxaarch64/build/usr/share/julia/stdlib/v1.6/Distributed/src/remotecall.jl:421
+ [10] remotecall_fetch(::Function, ::Int64)
+    @ Distributed /buildworker/worker/package_linuxaarch64/build/usr/share/julia/stdlib/v1.6/Distributed/src/remotecall.jl:421
+ [11] top-level scope
+    @ REPL[4]:1
+
+julia&gt; ┌ Warning: Worker 4 on pod interactive-session-nfz6j-worker-2hzsd was terminated due to: OOMKilled
+└ @ K8sClusterManagers ~/.julia/packages/K8sClusterManagers/hUL5i/src/native_driver.jl:171</code></pre></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../">« Home</a><a class="docs-footer-nextpage" href="../patterns/">Workflow Patterns »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> on <span class="colophon-date" title="Wednesday 5 May 2021 18:01">Wednesday 5 May 2021</span>. Using Julia version 1.6.1.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
