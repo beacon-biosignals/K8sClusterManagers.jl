@@ -1,15 +1,15 @@
 Examples
 ========
 
-The [`K8sClusterManager`](@ref) is intended to be used inside a [_Pod_](https://kubernetes.io/docs/concepts/workloads/pods/)
+The [`K8sClusterManager`](@ref) is intended to be used inside a [Pod](https://kubernetes.io/docs/concepts/workloads/pods/)
 running on a Kubernetes cluster.
 
 ## Launching an interactive session
 
-The following manifest will create a Kubernetes [_Job_](https://kubernetes.io/docs/concepts/workloads/controllers/job/)
-named "interactive-session". This _Job_ will spawn a _Pod_ (see `spec.template.spec`) which will
+The following manifest will create a Kubernetes [Job](https://kubernetes.io/docs/concepts/workloads/controllers/job/)
+named "interactive-session". This Job will spawn a Pod (see `spec.template.spec`) which will
 run an interactive Julia session with the latest release of K8sClusterManagers.jl installed.
-Be sure to create the required [_Service Account_ and associated permissions](../patterns/#required-permissions)
+Be sure to create the required [ServiceAccount and associated permissions](../patterns/#required-permissions)
 before proceeding.
 
 ````@eval
@@ -21,7 +21,7 @@ $(read("interactive-session.yaml", String))
 """)
 ````
 
-To start the _Job_ and attach to the interactive Julia session you can run the following:
+To start the Job and attach to the interactive Julia session you can run the following:
 
 ```sh
 # Executed from the K8sClusterManager.jl root directory
@@ -64,10 +64,10 @@ julia> pmap(x -> myid(), 1:nworkers())  # Each worker reports its worker ID
 ### Pending workers
 
 A worker created via `addprocs` may not necessarily be available right away, as K8s must
-schedule the worker's _Pod_ to a _Node_ before the corresponding Julia process can start.
-If K8s can't schedule the worker's _Pod_ to a _Node_ right away (e.g. not enough resources are
-available), then that _Pod_ will sit around in the "Pending" phase until it can be scheduled.
-Since a worker _Pod_ may be stuck in this "Pending" phase for an indefinite amount of time,
+schedule the worker's Pod to a Node before the corresponding Julia process can start.
+If K8s can't schedule the worker's Pod to a Node right away (e.g. not enough resources are
+available), then that Pod will sit around in the "Pending" phase until it can be scheduled.
+Since a worker Pod may be stuck in this "Pending" phase for an indefinite amount of time,
 [`K8sClusterManager`](@ref) includes the `pending_timeout` keyword that may used to specify
 how long you are willing to wait for pending workers. Once this timeout has been reached,
 the manager will continue with the subset of workers which have reported in and delete any
@@ -97,7 +97,7 @@ Int64[]
 ### Termination Reason
 
 When Julia workers [exceed the specified memory limit](https://kubernetes.io/docs/tasks/configure-pod-container/assign-memory-resource/#exceed-a-container-s-memory-limit)
-the worker _Pod_ will be automatically killed by Kubernetes (OOMKilled). In such a
+the worker Pod will be automatically killed by Kubernetes (OOMKilled). In such a
 scenario the worker will be reported as terminated by Distributed.jl without details.
 K8sClusterManagers.jl will provide the reason, as reported by K8s, for the termination of
 the worker:
