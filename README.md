@@ -5,11 +5,11 @@
 [![Docs: stable](https://img.shields.io/badge/docs-stable-blue.svg)](https://beacon-biosignals.github.io/K8sClusterManagers.jl/stable)
 [![Docs: development](https://img.shields.io/badge/docs-dev-blue.svg)](https://beacon-biosignals.github.io/K8sClusterManagers.jl/dev)
 
-A Julia cluster manager for provisioning workers in a Kubernetes (k8s) cluster.
+A Julia cluster manager for provisioning workers in a Kubernetes (K8s) cluster.
 
 ## K8sClusterManager
 
-The `K8sClusterManager` is intended to be used from a pod running inside a Kubernetes
+The `K8sClusterManager` is intended to be used from a Pod running inside a Kubernetes
 cluster.
 
 Assuming you have `kubectl` installed locally and configured to connect to a cluster, you
@@ -20,7 +20,7 @@ executing:
 kubectl run -it example-manager-pod --image julia:1
 ```
 
-Or equivalently, using a k8s manifest named `example-manager-pod.yaml` containing:
+Or equivalently, using a K8s manifest named `example-manager-pod.yaml` containing:
 
 ```yaml
 apiVersion: v1
@@ -36,7 +36,7 @@ spec:
 ```
 
 and running the following commands will also create a Julia REPL running inside a Kubernetes
-pod:
+Pod:
 
 ```sh
 kubectl apply -f example-manager-pod.yaml
@@ -58,10 +58,10 @@ julia> addprocs(K8sClusterManager(2))
 ### Advanced configuration
 
 `K8sClusterManager` exposes a `configure` keyword argument that can be used to make
-modifications to the pod manifest when defining workers.
+modifications to the Pod manifest when defining workers.
 
 When launching the cluster the function `configure(pod)` will be called where `pod` is an
-dict-object representing the YAML/JSON pod manifest. The function must return an object of
+dict-object representing the YAML/JSON Pod manifest. The function must return an object of
 the same type. For example if you wanted to change the workers to require GPU resources you
 could write the following:
 
@@ -83,7 +83,7 @@ JSON.print(pod, 4)
 
 ## Useful Commands
 
-Monitor the status of all your pods
+Monitor the status of all your Pods
 ```sh
 watch kubectl get pods,services
 ```
@@ -100,9 +100,9 @@ kill your workers from the command line.
 kubectl delete pod/example-driver-pod-worker-9001 --grace-period=0 --force=true
 ```
 It may be convenient to set a common label in your worker podspecs, so that you can select
-them all with `-l='...'` by label, and kill all the worker pods in a single invocation.
+them all with `-l='...'` by label, and kill all the worker Pods in a single invocation.
 
-Display info about a pod -- this is especially useful to troubleshoot a pod that is taking
+Display info about a Pod -- this is especially useful to troubleshoot a Pod that is taking
 longer than expected to get up and running.
 ```sh
 kubectl describe pod/example-driver-pod
@@ -117,7 +117,7 @@ If you aren't sure what went wrong, check the logs! The syntax is
 ```bash
 kubectl logs -f pod/pod_name
 ```
-where the pod name `pod_name` you can get from `kubectl get pods`.
+where the Pod name `pod_name` you can get from `kubectl get pods`.
 
 ## Testing
 

@@ -1,10 +1,6 @@
-# API
-
-```@meta
-CurrentModule = K8sClusterManagers
-```
-
-```@docs
-K8sClusterManager
-isk8s
-```
+````@eval
+using Markdown
+Markdown.parse("""
+$(read(joinpath("..", "..", "README.md"), String))
+""")
+````
