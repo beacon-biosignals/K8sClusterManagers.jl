@@ -63,13 +63,15 @@ julia> pmap(x -> myid(), 1:nworkers())  # Each worker reports its worker ID
 
 ### Pending workers
 
-A common issue when spawning workers is not having enough resources available to start the
-workers. Worker _Pods_ which cannot be started will be stuck in the "Pending" phase and will
-wait until resources become available. Since it is not known how long a worker may be stuck
-in the "Pending" phase the [`K8sClusterManager`](@ref) includes the `pending_timeout`
-keyword which specifies how long you are willing to wait for pending workers. Once this
-timeout has been reached the manager will continue with the subset of workers which have
-reported in.
+A worker created via `addprocs` may not necessarily be available right away, as K8s must
+schedule the worker's _Pod_ to a _Node_ before the corresponding Julia process can start.
+If K8s can't schedule the worker's _Pod_ to a _Node_ right away (e.g. not enough resources are
+available), then that _Pod_ will sit around in the "Pending" phase until it can be scheduled.
+Since a worker _Pod_ may be stuck in this "Pending" phase for an indefinite amount of time,
+[`K8sClusterManager`](@ref) includes the `pending_timeout` keyword that may used to specify
+how long you are willing to wait for pending workers. Once this timeout has been reached,
+the manager will continue with the subset of workers which have reported in and delete any
+workers that are stuck in the "Pending" phase.
 
 ```julia
 julia> addprocs(K8sClusterManager(1, memory="1Ei", pending_timeout=10))  # Request 1 exbibyte of memory
