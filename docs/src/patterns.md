@@ -42,34 +42,34 @@ cluster. One basic workflow would be as follows.
 1. Write a "script.jl" which uses `K8sClusterManager`
 2. Build and push a Docker image containing the "script.jl" and the required dependencies:
 
-    ```sh
-    docker build -t $IMAGE .
-    docker push $IMAGE
-    ```
+   ```sh
+   docker build -t $IMAGE .
+   docker push $IMAGE
+   ```
 
 3. Define a Kubernetes manifest ("script-example.template.yaml") which executes the Docker
    image on the cluster. Note that the use of `envsubst` will substitute `${...}` with the
    respectively named environmental variable.
 
-    ```yaml
-    apiVersion: v1
-    kind: Pod
-    metadata:
-      generateName: script-example-
-    spec:
-      serviceAccountName: "${PROJECT}-service-account"
-      restartPolicy: Never
-      containers:
-      - name: manager
-        image: "${IMAGE}"
-        imagePullPolicy: Always
-        command: ["julia", "script.jl"]
-        args: ["${ARG}"]
-    ```
+   ```yaml
+   apiVersion: v1
+   kind: Pod
+   metadata:
+     generateName: script-example-
+   spec:
+     serviceAccountName: "${PROJECT}-service-account"
+     restartPolicy: Never
+     containers:
+     - name: manager
+       image: "${IMAGE}"
+       imagePullPolicy: Always
+       command: ["julia", "script.jl"]
+       args: ["${ARG}"]
+   ```
 
 4. Create the resource which will run our script.
 
-    ```sh
-    # Expects that `PROJECT`, `IMAGE`, and `ARG` are all predefined
-    cat script-example.template.yaml | envsubst | kubectl create -f -
-    ```
+   ```sh
+   # Expects that `PROJECT`, `IMAGE`, and `ARG` are all predefined
+   cat script-example.template.yaml | envsubst | kubectl create -f -
+   ```
