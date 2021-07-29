@@ -7,7 +7,7 @@
 
 A Julia cluster manager for provisioning workers in a Kubernetes (K8s) cluster.
 
-Pairs well with [julia_pod](https://github.com/beacon-biosignals/julia_pod) for k8s-native julia development.
+Pairs well with [julia_pod](https://github.com/beacon-biosignals/julia_pod) for K8s-native Julia development.
 
 ## K8sClusterManager
 
