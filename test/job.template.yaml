@@ -58,7 +58,7 @@ spec:
         resources:
           limits:
             cpu: 0.5
-            memory: 300Mi
+            memory: 350Mi
         command: [{{#:command}}"{{{.}}}"{{^.[end]}}, {{/.[end]}}{{/:command}}]
         args: [{{#:args}}"{{{.}}}"{{^.[end]}}, {{/.[end]}}{{/:args}}]
         stdin: true

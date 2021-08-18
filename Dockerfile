@@ -1,5 +1,5 @@
 # https://hub.docker.com/_/julia/
-ARG BASE_IMAGE=julia:1-buster
+ARG BASE_IMAGE=julia:1.6.2
 FROM ${BASE_IMAGE}
 
 ENV PKG_NAME "K8sClusterManagers"
