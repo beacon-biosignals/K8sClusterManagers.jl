@@ -15,7 +15,8 @@ function config_namespace()
     # Equivalent to running `kubectl config view --minify --output='jsonpath={..namespace}'`
     # but improves handling of corner cases.
 
-    context = read(`$(kubectl()) config view --output='jsonpath={.current-context}'`, String)
+    output = "jsonpath={.current-context}"
+    context = read(`$(kubectl()) config view --output=$output`, String)
     isempty(context) && return nothing
 
     # Note: The output from `kubectl config view` reports a missing `namespace` entry,

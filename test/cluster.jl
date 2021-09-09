@@ -102,8 +102,10 @@ end
             # `kubectl get events`.
             reason = nothing
             while reason === nothing || reason == "Started"
+                query = "involvedObject.name=$name"
                 output = "jsonpath={.items[-1:].reason}"
-                reason = read(`$(kubectl()) get events --field-selector involvedObject.name=$name -o=$output`, String)
+                kubectl_cmd = `$(kubectl()) get events --field-selector $query -o=$output`
+                reason = read(kubectl_cmd, String)
             end
 
             @test reason == "Killing"

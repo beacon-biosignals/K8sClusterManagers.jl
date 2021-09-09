@@ -26,8 +26,9 @@ Retrieve details about the specified pod as a JSON-compatible dictionary. If the
 pod with the given `name` then a `$KubeError` will be raised.
 """
 function get_pod(name::AbstractString)
+    kubectl_cmd = `$(kubectl()) get pod/$name -o json`
     err = IOBuffer()
-    out = read(pipeline(ignorestatus(`$(kubectl()) get pod/$name -o json`), stderr=err), String)
+    out = read(pipeline(ignorestatus(kubectl_cmd), stderr=err), String)
 
     err.size > 0 && throw(KubeError(err))
     return JSON.parse(out; dicttype=OrderedDict)
@@ -47,9 +48,10 @@ function create_pod(manifest::AbstractDict)
         throw(ArgumentError("Manifest expected to be of kind \"Pod\" and not \"$kind\""))
     end
 
+    kubectl_cmd = `$(kubectl()) create -f -`
     out = IOBuffer()
     err = IOBuffer()
-    open(pipeline(ignorestatus(`$(kubectl()) create -f -`), stdout=out, stderr=err), "w") do p
+    open(pipeline(ignorestatus(kubectl_cmd), stdout=out, stderr=err), "w") do p
         write(p.in, JSON.json(manifest))
     end
 
@@ -72,9 +74,9 @@ end
 Create or replace a metadata label for a given pod `name`. Requires the "patch" permission.
 """
 function label_pod(name::AbstractString, label::Pair)
+    kubectl_cmd = `$(kubectl()) label --overwrite pod/$name $(join(label, '='))`
     err = IOBuffer()
-    cmd = `$(kubectl()) label --overwrite pod/$name $(join(label, '='))`
-    run(pipeline(ignorestatus(cmd), stdout=devnull, stderr=err))
+    run(pipeline(ignorestatus(kubectl_cmd), stdout=devnull, stderr=err))
 
     err.size > 0 && throw(KubeError(err))
     return nothing
@@ -87,9 +89,9 @@ end
 Delete the pod with the given `name`.
 """
 function delete_pod(name::AbstractString; wait::Bool=true)
+    kubectl_cmd = `$(kubectl()) delete pod/$name --wait=$wait`
     err = IOBuffer()
-    cmd = `$(kubectl()) delete pod/$name --wait=$wait`
-    run(pipeline(ignorestatus(cmd), stdout=devnull, stderr=err))
+    run(pipeline(ignorestatus(kubectl_cmd), stdout=devnull, stderr=err))
 
     err.size > 0 && throw(KubeError(err))
     return nothing
@@ -140,9 +142,9 @@ Execute `cmd` on the `name`d pod. If the command fails a `KubeError` will be rai
 """
 function exec_pod(name::AbstractString, cmd::Cmd)
     # When an `exec` failure occurs there is some useful information in stdout and stderr
+    kubectl_cmd = `$(kubectl()) exec pod/$name -- $cmd`
     err = IOBuffer()
-    exec_cmd = `$(kubectl()) exec pod/$name -- $cmd`
-    p = run(pipeline(ignorestatus(exec_cmd), stdout=err, stderr=err))
+    p = run(pipeline(ignorestatus(kubectl_cmd), stdout=err, stderr=err))
 
     !success(p) && throw(KubeError(err))
     return nothing

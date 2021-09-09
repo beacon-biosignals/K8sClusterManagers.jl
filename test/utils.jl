@@ -13,8 +13,9 @@ function get_job(name::AbstractString; jsonpath=nothing)
         "json"
     end
 
+    kubectl_cmd = `$(kubectl()) get job/$name -o $output`
     err = IOBuffer()
-    out = read(pipeline(ignorestatus(`$(kubectl()) get job/$name -o $output`), stderr=err), String)
+    out = read(pipeline(ignorestatus(kubectl_cmd), stderr=err), String)
 
     err.size > 0 && throw(KubeError(err))
     return output == "json" ? JSON.parse(out; dicttype=OrderedDict) : out
@@ -41,7 +42,8 @@ function pod_names(labels::Pair...; sort_by=nothing)
     # Adapted from: https://kubernetes.io/docs/concepts/workloads/controllers/job/#running-an-example-job
     jsonpath = "{range .items[*]}{.metadata.name}{\"\\n\"}{end}"
     sort_by_opt = sort_by !== nothing ? `--sort-by=$sort_by` : ``
-    output = readchomp(`$(kubectl()) get pods -l $selector -o=jsonpath=$jsonpath $sort_by_opt`)
+    kubectl_cmd = `$(kubectl()) get pods -l $selector -o=jsonpath=$jsonpath $sort_by_opt`
+    output = readchomp(kubectl_cmd)
     return !isempty(output) ? split(output, '\n') : String[]
 end
 
@@ -56,18 +58,18 @@ randsuffix(len=5) = randstring(['a':'z'; '0':'9'], len)
 
 
 function report(job_name, pods::Pair...)
-    cmd = `$(kubectl()) describe job/$job_name`
-    @info "Describe job:\n" * read(ignorestatus(cmd), String)
+    kubectl_cmd = `$(kubectl()) describe job/$job_name`
+    @info "Describe job:\n" * read(ignorestatus(kubectl_cmd), String)
 
     # Note: A job doesn't contain a direct reference to the pod it starts so
     # re-using the job name can result in us identifying the wrong manager pod.
-    cmd = `$(kubectl()) get pods -L job-name=$job_name`
-    @info "List pods for job $job_name:\n" * read(ignorestatus(cmd), String)
+    kubectl_cmd = `$(kubectl()) get pods -L job-name=$job_name`
+    @info "List pods for job $job_name:\n" * read(ignorestatus(kubectl_cmd), String)
 
     for (title, pod_name) in pods
         if pod_exists(pod_name)
-            cmd = `$(kubectl()) describe pod $pod_name`
-            @info "Describe $title pod:\n" * read(cmd, String)
+            kubectl_cmd = `$(kubectl()) describe pod $pod_name`
+            @info "Describe $title pod:\n" * read(kubectl_cmd, String)
         else
             @info "$(titlecase(title)) pod \"$pod_name\" not found"
         end
