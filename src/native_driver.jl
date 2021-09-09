@@ -93,11 +93,7 @@ function Distributed.launch(manager::K8sClusterManager, params::Dict, launched::
 
     cmd = `$exename $exeflags --worker=$(cluster_cookie())`
 
-    worker_manifest = @static if VERSION >= v"1.5"
-        worker_pod_spec(manager; cmd)
-    else
-        worker_pod_spec(manager; cmd=cmd)
-    end
+    worker_manifest = worker_pod_spec(manager; cmd)
 
     # Note: User-defined `configure` function may or may-not be mutating
     worker_manifest = manager.configure(worker_manifest)
@@ -122,9 +118,7 @@ function Distributed.launch(manager::K8sClusterManager, params::Dict, launched::
                 # Redirect any stdout/stderr from the worker to be displayed on the manager.
                 # Note: `start_worker` (via `--worker`) automatically redirects stderr to
                 # stdout.
-                p = kubectl() do exe
-                    open(detach(`$exe logs -f pod/$pod_name`), "r+")
-                end
+                p = open(detach(`$(kubectl()) logs -f pod/$pod_name`), "r+")
 
                 config = WorkerConfig()
                 config.io = p.out

@@ -14,16 +14,16 @@ function config_namespace()
     #
     # Equivalent to running `kubectl config view --minify --output='jsonpath={..namespace}'`
     # but improves handling of corner cases.
-    kubectl() do exe
-        context = read(`$exe config view --output='jsonpath={.current-context}'`, String)
-        isempty(context) && return nothing
 
-        # Note: The output from `kubectl config view` reports a missing `namespace` entry,
-        # `namespace: null`, and `namespace: ""` as the same.
-        output = "jsonpath={.contexts[?(@.name=='$context')].context.namespace}"
-        namespace = read(`$exe config view --output=$output`, String)
-        return !isempty(namespace) ? namespace : nothing
-    end
+    output = "jsonpath={.current-context}"
+    context = read(`$(kubectl()) config view --output=$output`, String)
+    isempty(context) && return nothing
+
+    # Note: The output from `kubectl config view` reports a missing `namespace` entry,
+    # `namespace: null`, and `namespace: ""` as the same.
+    output = "jsonpath={.contexts[?(@.name=='$context')].context.namespace}"
+    namespace = read(`$(kubectl()) config view --output=$output`, String)
+    return !isempty(namespace) ? namespace : nothing
 end
 
 

@@ -4,9 +4,7 @@
         result = @test K8sClusterManagers.config_namespace() isa Union{String,Nothing}
 
         if !(result isa Test.Pass)
-            kubectl() do exe
-                @info "kubectl config view:\n" * read(`$exe config view`, String)
-            end
+            @info "kubectl config view:\n" * read(`$(kubectl()) config view`, String)
         end
     end
 

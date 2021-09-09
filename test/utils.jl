@@ -1,10 +1,8 @@
 using DataStructures: OrderedDict
 
 function k8s_create(manifest::IO)
-    kubectl() do exe
-        open(`$exe apply --force -f -`, "w", stdout) do p
-            write(p.in, read(manifest))
-        end
+    open(`$(kubectl()) apply --force -f -`, "w", stdout) do p
+        write(p.in, read(manifest))
     end
 end
 
@@ -15,10 +13,9 @@ function get_job(name::AbstractString; jsonpath=nothing)
         "json"
     end
 
+    kubectl_cmd = `$(kubectl()) get job/$name -o $output`
     err = IOBuffer()
-    out = kubectl() do exe
-        read(pipeline(ignorestatus(`$exe get job/$name -o $output`), stderr=err), String)
-    end
+    out = read(pipeline(ignorestatus(kubectl_cmd), stderr=err), String)
 
     err.size > 0 && throw(KubeError(err))
     return output == "json" ? JSON.parse(out; dicttype=OrderedDict) : out
@@ -30,13 +27,13 @@ function wait_job(job_name; condition=!isempty, timeout=60)
     end
 end
 
-pod_exists(pod_name) = kubectl(exe -> success(`$exe get pod/$pod_name`))
+pod_exists(pod_name) = success(`$(kubectl()) get pod/$pod_name`)
 
 # Will fail if called and the job is in state "Waiting"
-pod_logs(pod_name) = kubectl(exe -> read(ignorestatus(`$exe logs $pod_name`), String))
+pod_logs(pod_name) = read(ignorestatus(`$(kubectl()) logs $pod_name`), String)
 
 # https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-phase
-pod_phase(pod_name) = kubectl(exe -> read(`$exe get pod/$pod_name -o 'jsonpath={.status.phase}'`, String))
+pod_phase(pod_name) = read(`$(kubectl()) get pod/$pod_name -o 'jsonpath={.status.phase}'`, String)
 
 function pod_names(labels::Pair...; sort_by=nothing)
     selectors = Dict{String,String}(labels)
@@ -45,9 +42,8 @@ function pod_names(labels::Pair...; sort_by=nothing)
     # Adapted from: https://kubernetes.io/docs/concepts/workloads/controllers/job/#running-an-example-job
     jsonpath = "{range .items[*]}{.metadata.name}{\"\\n\"}{end}"
     sort_by_opt = sort_by !== nothing ? `--sort-by=$sort_by` : ``
-    output = kubectl() do exe
-        readchomp(`$exe get pods -l $selector -o=jsonpath=$jsonpath $sort_by_opt`)
-    end
+    kubectl_cmd = `$(kubectl()) get pods -l $selector -o=jsonpath=$jsonpath $sort_by_opt`
+    output = readchomp(kubectl_cmd)
     return !isempty(output) ? split(output, '\n') : String[]
 end
 
@@ -62,24 +58,18 @@ randsuffix(len=5) = randstring(['a':'z'; '0':'9'], len)
 
 
 function report(job_name, pods::Pair...)
-    kubectl() do exe
-        cmd = `$exe describe job/$job_name`
-        @info "Describe job:\n" * read(ignorestatus(cmd), String)
-    end
+    kubectl_cmd = `$(kubectl()) describe job/$job_name`
+    @info "Describe job:\n" * read(ignorestatus(kubectl_cmd), String)
 
     # Note: A job doesn't contain a direct reference to the pod it starts so
     # re-using the job name can result in us identifying the wrong manager pod.
-    kubectl() do exe
-        cmd = `$exe get pods -L job-name=$job_name`
-        @info "List pods for job $job_name:\n" * read(ignorestatus(cmd), String)
-    end
+    kubectl_cmd = `$(kubectl()) get pods -L job-name=$job_name`
+    @info "List pods for job $job_name:\n" * read(ignorestatus(kubectl_cmd), String)
 
     for (title, pod_name) in pods
         if pod_exists(pod_name)
-            kubectl() do exe
-                cmd = `$exe describe pod $pod_name`
-                @info "Describe $title pod:\n" * read(cmd, String)
-            end
+            kubectl_cmd = `$(kubectl()) describe pod $pod_name`
+            @info "Describe $title pod:\n" * read(kubectl_cmd, String)
         else
             @info "$(titlecase(title)) pod \"$pod_name\" not found"
         end
