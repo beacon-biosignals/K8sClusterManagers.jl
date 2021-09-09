@@ -122,9 +122,7 @@ function Distributed.launch(manager::K8sClusterManager, params::Dict, launched::
                 # Redirect any stdout/stderr from the worker to be displayed on the manager.
                 # Note: `start_worker` (via `--worker`) automatically redirects stderr to
                 # stdout.
-                p = kubectl() do exe
-                    open(detach(`$exe logs -f pod/$pod_name`), "r+")
-                end
+                p = open(detach(`$(kubectl()) logs -f pod/$pod_name`), "r+")
 
                 config = WorkerConfig()
                 config.io = p.out
