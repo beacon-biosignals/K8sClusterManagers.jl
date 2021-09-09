@@ -142,7 +142,7 @@ function exec_pod(name::AbstractString, cmd::Cmd)
     # When an `exec` failure occurs there is some useful information in stdout and stderr
     err = IOBuffer()
     exec_cmd = `$(kubectl()) exec pod/$name -- $cmd`
-    run(pipeline(ignorestatus(exec_cmd), stdout=err, stderr=err))
+    p = run(pipeline(ignorestatus(exec_cmd), stdout=err, stderr=err))
 
     !success(p) && throw(KubeError(err))
     return nothing
