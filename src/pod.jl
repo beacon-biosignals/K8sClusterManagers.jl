@@ -108,13 +108,8 @@ will be raised.
 function wait_for_running_pod(name::AbstractString; timeout::Real)
     pod = nothing
 
-    # `timedwait` requires a floating points for the `secs` argument and `pollint` keyword
-    @static if VERSION < v"1.5-"
-        timeout = float(timeout)
-    end
-
     # https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-phase
-    result = timedwait(timeout; pollint=1.0) do
+    result = timedwait(timeout; pollint=1) do
         pod = @mock get_pod(name)
         pod["status"]["phase"] != "Pending"
     end
