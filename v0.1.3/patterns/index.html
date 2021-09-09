@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Workflow Patterns · K8sClusterManagers.jl</title><link href="https://fonts.googleapis.com/css?family=Lato|Roboto+Mono" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.0/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.0/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.0/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.11.1/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL=".."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../assets/documenter.js"></script><script src="../siteinfo.js"></script><script src="../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit">K8sClusterManagers.jl</span></div><form class="docs-search" action="../search/"><input class="docs-search-query" id="documenter-search-query" name="q" type="text" placeholder="Search docs"/></form><ul class="docs-menu"><li><a class="tocitem" href="../">Home</a></li><li><a class="tocitem" href="../examples/">Examples</a></li><li class="is-active"><a class="tocitem" href>Workflow Patterns</a><ul class="internal"><li><a class="tocitem" href="#Required-Permissions"><span>Required Permissions</span></a></li><li><a class="tocitem" href="#Use-K8sClusterManager-only-within-cluster"><span>Use K8sClusterManager only within cluster</span></a></li><li><a class="tocitem" href="#Executing-a-script"><span>Executing a script</span></a></li></ul></li><li><a class="tocitem" href="../api/">API Documentation</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><nav class="breadcrumb"><ul class="is-hidden-mobile"><li class="is-active"><a href>Workflow Patterns</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Workflow Patterns</a></li></ul></nav><div class="docs-right"><a class="docs-edit-link" href="https://github.com/beacon-biosignals/K8sClusterManagers.jl/blob/master/docs/src/patterns.md" title="Edit on GitHub"><span class="docs-icon fab"></span><span class="docs-label is-hidden-touch">Edit on GitHub</span></a><a class="docs-settings-button fas fa-cog" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-sidebar-button fa fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a></div></header><article class="content" id="documenter-page"><h1 id="Workflow-Patterns"><a class="docs-heading-anchor" href="#Workflow-Patterns">Workflow Patterns</a><a id="Workflow-Patterns-1"></a><a class="docs-heading-anchor-permalink" href="#Workflow-Patterns" title="Permalink"></a></h1><h2 id="Required-Permissions"><a class="docs-heading-anchor" href="#Required-Permissions">Required Permissions</a><a id="Required-Permissions-1"></a><a class="docs-heading-anchor-permalink" href="#Required-Permissions" title="Permalink"></a></h2><p>K8sClusterManagers.jl requires a minimal set of permisisons for managing worker Pods within the cluster. A minimal set of permissions is documented below along with a ServiceAccount to make use of these permissions:</p><pre><code class="language-yaml"># Minimal set of permissions required by K8sClusterManagers.jl
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: julia-manager-role
+rules:
+- apiGroups: [&quot;&quot;]  # &quot;&quot; indicates the core API group
+  resources: [&quot;pods&quot;]
+  verbs: [&quot;create&quot;, &quot;delete&quot;, &quot;get&quot;, &quot;patch&quot;]
+- apiGroups: [&quot;&quot;]
+  resources: [&quot;pods/exec&quot;]
+  verbs: [&quot;create&quot;]
+- apiGroups: [&quot;&quot;]
+  resources: [&quot;pods/log&quot;]
+  verbs: [&quot;get&quot;]
+
+---
+# https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: julia-manager-serviceaccount
+automountServiceAccountToken: true
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: julia-manager-role-binding
+roleRef:
+  kind: Role
+  name: julia-manager-role
+  apiGroup: rbac.authorization.k8s.io
+subjects:
+- kind: ServiceAccount
+  name: julia-manager-serviceaccount
+</code></pre><h2 id="Use-K8sClusterManager-only-within-cluster"><a class="docs-heading-anchor" href="#Use-K8sClusterManager-only-within-cluster">Use K8sClusterManager only within cluster</a><a id="Use-K8sClusterManager-only-within-cluster-1"></a><a class="docs-heading-anchor-permalink" href="#Use-K8sClusterManager-only-within-cluster" title="Permalink"></a></h2><p>Since the <a href="../api/#K8sClusterManagers.K8sClusterManager"><code>K8sClusterManager</code></a> can only be used when running inside of a Kubernetes Pod you may want conditionally use it. The <a href="../api/#K8sClusterManagers.isk8s"><code>isk8s</code></a> predicate provides a convenient way of determining if the running Julia process is executing within a K8s Pod.</p><pre><code class="language-julia">using Distributed, K8sClusterManagers
+
+manager = if isk8s()
+    K8sClusterManager(n)
+else
+    Distributed.LocalManager(n)
+end
+
+addprocs(manager; exeflags=&quot;--project&quot;)</code></pre><h2 id="Executing-a-script"><a class="docs-heading-anchor" href="#Executing-a-script">Executing a script</a><a id="Executing-a-script-1"></a><a class="docs-heading-anchor-permalink" href="#Executing-a-script" title="Permalink"></a></h2><p>Depending on your use case you may find yourself wanting to execute a script on the K8s cluster. One basic workflow would be as follows.</p><ol><li><p>Write a &quot;script.jl&quot; which uses <code>K8sClusterManager</code></p></li><li><p>Build and push a Docker image containing the &quot;script.jl&quot; and the required dependencies:</p><pre><code class="language-sh">docker build -t $IMAGE .
+docker push $IMAGE</code></pre></li><li><p>Define a Kubernetes manifest (&quot;script-example.template.yaml&quot;) which executes the Docker image on the cluster. Note that the use of <code>envsubst</code> will substitute <code>${...}</code> with the respectively named environmental variable.</p><pre><code class="language-yaml">apiVersion: v1
+kind: Pod
+metadata:
+  generateName: script-example-
+spec:
+  serviceAccountName: &quot;${PROJECT}-service-account&quot;
+  restartPolicy: Never
+  containers:
+  - name: manager
+    image: &quot;${IMAGE}&quot;
+    imagePullPolicy: Always
+    command: [&quot;julia&quot;, &quot;script.jl&quot;]
+    args: [&quot;${ARG}&quot;]</code></pre></li><li><p>Create the resource which will run our script.</p><pre><code class="language-sh"># Expects that `PROJECT`, `IMAGE`, and `ARG` are all predefined
+cat script-example.template.yaml | envsubst | kubectl create -f -</code></pre></li></ol></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../examples/">« Examples</a><a class="docs-footer-nextpage" href="../api/">API Documentation »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> on <span class="colophon-date" title="Thursday 9 September 2021 19:01">Thursday 9 September 2021</span>. Using Julia version 1.6.2.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
