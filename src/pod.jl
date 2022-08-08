@@ -244,7 +244,7 @@ end
 
 
 """
-    az_node_selector() -> Dict
+    az_node_selector!() -> Dict
 
 Add a nodeSelector to a new pod that will ensure that it runs in the same availability zone
 as the manager pod.
