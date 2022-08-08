@@ -249,7 +249,7 @@ end
 Add a nodeSelector to a new pod that will ensure that it runs in the same availability zone
 as the manager pod.
 """
-function az_node_selector(pod)
+function az_node_selector!(pod)
     pod_name = ENV["HOSTNAME"]
     node_name = readchomp(`$(kubectl()) get pod $pod_name -o jsonpath='{.spec.nodeName}'`)
     zone = readchomp(`$(kubectl()) get node $node_name -o jsonpath='{.metadata.labels.topology\.kubernetes\.io/zone}'`)
