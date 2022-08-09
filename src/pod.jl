@@ -255,14 +255,14 @@ end
 
 
 """
-    zone_node_selector!() -> Dict
+    zone_node_selector!(pod) -> Dict
 
 Add a nodeSelector to a new pod that will ensure that it runs in the same zone
 as the manager pod.
 """
 function zone_node_selector!(pod)
-    pod_name = pod["metadata"]["labels"]["manager"]
-    zone = pod_zone(pod_name)
+    manager_name = pod["metadata"]["labels"]["manager"]
+    zone = pod_zone(manager_name)
     pod["spec"]["nodeSelector"] = Dict("topology.kubernetes.io/zone" => zone)
     return pod
 end
