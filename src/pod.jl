@@ -244,11 +244,11 @@ end
 
 
 """
-    pod_zone() -> String
+    pod_zone(pod_name::AbstractString) -> String
 
 Get the zone that the node hosting the current pod is running in.
 """
-function pod_zone(pod_name=ENV["HOSTNAME"])
+function pod_zone(pod_name::AbstractString)
     node_name = readchomp(`$(kubectl()) get pod $pod_name -o jsonpath='{.spec.nodeName}'`)
     return readchomp(`$(kubectl()) get node $node_name -o jsonpath='{.metadata.labels.topology\.kubernetes\.io/zone}'`)
 end
@@ -261,8 +261,8 @@ Add a nodeSelector to a new pod that will ensure that it runs in the same zone
 as the manager pod.
 """
 function zone_node_selector!(pod)
-    zone = pod_zone()
-    spec = get!(pod, "spec", Dict())
-    spec["nodeSelector"] = Dict("topology.kubernetes.io/zone" => zone)
+    pod_name = pod["metadata"]["labels"]["manager"]
+    zone = pod_zone(pod_name)
+    pod["spec"]["nodeSelector"] = Dict("topology.kubernetes.io/zone" => zone)
     return pod
 end
