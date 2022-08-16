@@ -263,6 +263,7 @@ as the manager pod.
 function zone_node_selector!(pod)
     manager_name = pod["metadata"]["labels"]["manager"]
     zone = pod_zone(manager_name)
-    pod["spec"]["nodeSelector"] = Dict("topology.kubernetes.io/zone" => zone)
+    node_selector = get!(pod["spec"], "nodeSelector", Dict())
+    node_selector["topology.kubernetes.io/zone"] = zone
     return pod
 end
