@@ -91,7 +91,7 @@ function Distributed.launch(manager::K8sClusterManager, params::Dict, launched::
     exename = params[:exename]
     exeflags = params[:exeflags]
 
-    cmd = `$exename $exeflags --worker=$(cluster_cookie())`
+    cmd = `$exename $exeflags --worker=$(cluster_cookie()) --bind-to=127.0.0.1:9050`
 
     worker_manifest = worker_pod_spec(manager; cmd)
 
@@ -120,17 +120,8 @@ function Distributed.launch(manager::K8sClusterManager, params::Dict, launched::
                 # stdout.
                 p = open(detach(`$(kubectl()) logs -f pod/$pod_name`), "r+")
 
-                io = open(detach(`$(kubectl()) logs -f pod/$pod_name`), "r+")
-                pod_addr, pod_port = try
-                    Distributed.read_worker_host_port(io)
-                finally
-                    close(io)
-                end
-
-                @show pod_addr, Int(pod_port)
-
                 # TODO: Seems weird to have this here but this is just a PoC
-                pf = open(detach(`$(kubectl()) port-forward --address 127.0.0.1 $pod_name :$pod_port`), "r+")
+                pf = open(detach(`$(kubectl()) port-forward --address 127.0.0.1 $pod_name 9050:9050`), "r+")
                 sleep(5)
                 m = match(r"127\.0\.0\.1:(\d+)", readline(pf))
                 local_port = parse(Int, m.captures[1])
@@ -195,6 +186,7 @@ function Distributed.manage(manager::K8sClusterManager, id::Integer, config::Wor
     end
 end
 
+#=
 # Forcing ports on pods and localhost to be the same
 function Distributed.connect(manager::K8sClusterManager, pid::Int, config::WorkerConfig)
     @show Base.stacktrace()
@@ -232,6 +224,7 @@ function Distributed.connect(manager::K8sClusterManager, pid::Int, config::Worke
 
     (s, s)
 end
+=#
 
 # https://github.com/kubernetes/kubectl/issues/1169
 # https://github.com/kubernetes/kubectl/issues/1363
