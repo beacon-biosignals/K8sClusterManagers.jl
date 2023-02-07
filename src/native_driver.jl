@@ -120,9 +120,26 @@ function Distributed.launch(manager::K8sClusterManager, params::Dict, launched::
                 # stdout.
                 p = open(detach(`$(kubectl()) logs -f pod/$pod_name`), "r+")
 
+                io = open(detach(`$(kubectl()) logs -f pod/$pod_name`), "r+")
+                pod_addr, pod_port = try
+                    Distributed.read_worker_host_port(io)
+                finally
+                    close(io)
+                end
+
+                @show pod_addr, Int(pod_port)
+
+                # TODO: Seems weird to have this here but this is just a PoC
+                pf = open(detach(`$(kubectl()) port-forward --address 127.0.0.1 $pod_name :$pod_port`), "r+")
+                sleep(5)
+                m = match(r"127\.0\.0\.1:(\d+)", readline(pf))
+                local_port = parse(Int, m.captures[1])
+
+                @show local_port
+
                 config = WorkerConfig()
                 config.io = p.out
-                config.userdata = (; pod_name=pod_name)
+                config.userdata = (; pod_name=pod_name, port_forward=pf, local_port)
 
                 push!(launched, config)
                 notify(c)
@@ -177,3 +194,44 @@ function Distributed.manage(manager::K8sClusterManager, id::Integer, config::Wor
         end
     end
 end
+
+# Forcing ports on pods and localhost to be the same
+function Distributed.connect(manager::K8sClusterManager, pid::Int, config::WorkerConfig)
+    @show Base.stacktrace()
+    if config.connect_at !== nothing
+        # this is a worker-to-worker setup call.
+        return Distributed.connect_w2w(pid, config)
+    end
+
+    # master connecting to workers
+    bind_addr, port::Int = Distributed.read_worker_host_port(config.io)
+    config.connect_at = (bind_addr, port)
+
+    config.host = "127.0.0.1"
+    config.port = config.userdata.local_port
+    config.bind_addr = config.host
+
+    @show config.host Int(config.port)
+
+    (s, bind_addr) = Distributed.connect_to_worker(config.bind_addr, config.port)
+
+    println("connected")
+
+    if config.io !== nothing
+        let pid = pid
+            Distributed.redirect_worker_output(pid, Base.notnothing(config.io))
+        end
+    end
+
+    @show readavailable(s)
+
+    # @show config.userdata.port_forward
+    # @show String(readavailable(config.userdata.port_forward))
+
+    println("connected2")
+
+    (s, s)
+end
+
+# https://github.com/kubernetes/kubectl/issues/1169
+# https://github.com/kubernetes/kubectl/issues/1363
