@@ -91,7 +91,7 @@ function Distributed.launch(manager::K8sClusterManager, params::Dict, launched::
     exename = params[:exename]
     exeflags = params[:exeflags]
 
-    cmd = `$exename $exeflags --worker=$(cluster_cookie()) --bind-to=127.0.0.1:9050`
+    cmd = `$exename $exeflags --worker=$(cluster_cookie()) --bind-to=0.0.0.0:9050`
 
     worker_manifest = worker_pod_spec(manager; cmd)
 
@@ -115,6 +115,12 @@ function Distributed.launch(manager::K8sClusterManager, params::Dict, launched::
             if pod !== nothing
                 @info "$pod_name is up"
 
+                # Using `--bind-to` to set the port requires us to also specify the hostname
+                # to listen to. This command allows determine the IP address of the worker
+                # from within the K8s cluster
+                io = open(`$(kubectl()) exec pod/$pod_name -- $exename -e 'using Sockets; println(join(getipaddrs(), "\n"))'`)
+                intra_addr = readline(io)
+
                 # Redirect any stdout/stderr from the worker to be displayed on the manager.
                 # Note: `start_worker` (via `--worker`) automatically redirects stderr to
                 # stdout.
@@ -124,13 +130,11 @@ function Distributed.launch(manager::K8sClusterManager, params::Dict, launched::
                 pf = open(detach(`$(kubectl()) port-forward --address 127.0.0.1 $pod_name :9050`), "r+")
                 local_addr, local_port = parse_forward_info(readline(pf.out))
 
-                @show local_addr local_port
-
                 config = WorkerConfig()
                 config.host = local_addr
                 config.port = local_port
                 config.io = p.out
-                config.userdata = (; pod_name=pod_name, port_forward=pf)
+                config.userdata = (; pod_name=pod_name, port_forward=pf, intra_addr)
 
                 push!(launched, config)
                 notify(c)
@@ -199,7 +203,9 @@ function Distributed.connect(manager::K8sClusterManager, pid::Int, config::Worke
         error("I/O not setup")
     end
 
-    @show intra_addr intra_port
+    if intra_addr == "0.0.0.0"
+        intra_addr = config.userdata.intra_addr
+    end
 
     local_addr = Base.notnothing(config.host)
     local_port = Base.notnothing(config.port)
