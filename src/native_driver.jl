@@ -1,6 +1,9 @@
 const DEFAULT_WORKER_CPU = 1
 const DEFAULT_WORKER_MEMORY = "4Gi"
 
+const WORKER_BIND_ADDR = "0.0.0.0"
+const WORKER_BIND_PORT = 9050
+
 # Notifies tasks that the abnormal worker deregistration warning has been emitted
 const DEREGISTER_ALERT = Condition()
 
@@ -91,22 +94,22 @@ function Distributed.launch(manager::K8sClusterManager, params::Dict, launched::
     exename = params[:exename]
     exeflags = params[:exeflags]
 
+    # When using a standard Julia Docker image we can safely set the Julia executable name
+    # Alternatively, we could extend `Distributed.default_addprocs_params`.
     if startswith(manager.image, "julia:")
         exename = "julia"
     end
 
-    cmd = `$exename $exeflags --worker=$(cluster_cookie()) --bind-to=0.0.0.0:9050`
+    cmd = `$exename $exeflags --worker=$(cluster_cookie()) --bind-to=$WORKER_BIND_ADDR:$WORKER_BIND_PORT`
 
     worker_manifest = worker_pod_spec(manager; cmd)
 
     # Note: User-defined `configure` function may or may-not be mutating
     worker_manifest = manager.configure(worker_manifest)
 
-    # Hacky call to trigger TOTP outside of async block
-    try
-        get_pod("foo")
-    catch e
-    end
+    # Trigger any TOTP requests before the async loop
+    # TODO: Verify this is working correctly
+    success(`$(kubectl()) get pods -o 'jsonpath={.items[*].metadata.null}'`)
 
     @sync for i in 1:manager.np
         @async begin
@@ -130,7 +133,8 @@ function Distributed.launch(manager::K8sClusterManager, params::Dict, launched::
 
                 # Using `--bind-to` to set the port requires us to also specify the hostname
                 # to listen to. This command allows determine the IP address of the worker
-                # from within the K8s cluster
+                # from within the K8s cluster. Alternatively, we could use custom
+                # `start_worker` to allow us to just specify the port but this was easier.
                 io = open(`$(kubectl()) exec pod/$pod_name -- $exename -e 'using Sockets; println(join(getipaddrs(), "\n"))'`)
                 intra_addr = readline(io)
 
@@ -140,7 +144,7 @@ function Distributed.launch(manager::K8sClusterManager, params::Dict, launched::
                 p = open(detach(`$(kubectl()) logs -f pod/$pod_name`), "r+")
 
                 # TODO: Seems weird to have this here but this is just a PoC
-                pf = open(detach(`$(kubectl()) port-forward --address 127.0.0.1 $pod_name :9050`), "r+")
+                pf = open(detach(`$(kubectl()) port-forward --address 127.0.0.1 $pod_name :$WORKER_BIND_PORT`), "r+")
                 local_addr, local_port = parse_forward_info(readline(pf.out))
 
                 config = WorkerConfig()
@@ -218,7 +222,7 @@ function Distributed.connect(manager::K8sClusterManager, pid::Int, config::Worke
         error("I/O not setup")
     end
 
-    if intra_addr == "0.0.0.0"
+    if intra_addr == WORKER_BIND_ADDR
         intra_addr = config.userdata.intra_addr
     end
 
