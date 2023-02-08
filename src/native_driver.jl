@@ -48,7 +48,7 @@ available.
 function K8sClusterManager(np::Integer;
                            namespace::String=current_namespace(),
                            manager_pod_name::String=get(ENV, "HOSTNAME", "localhost"),
-                           image=nothing,
+                           image="julia:$VERSION",
                            cpu=DEFAULT_WORKER_CPU,
                            memory=DEFAULT_WORKER_MEMORY,
                            pending_timeout::Real=180,
@@ -90,6 +90,10 @@ end
 function Distributed.launch(manager::K8sClusterManager, params::Dict, launched::Array, c::Condition)
     exename = params[:exename]
     exeflags = params[:exeflags]
+
+    if startswith(manager.image, "julia:")
+        exename = "julia"
+    end
 
     cmd = `$exename $exeflags --worker=$(cluster_cookie()) --bind-to=0.0.0.0:9050`
 
@@ -198,6 +202,8 @@ function Distributed.connect(manager::K8sClusterManager, pid::Int, config::Worke
 
     # master connecting to workers
     if config.io !== nothing
+        # Not truly needed as we already know this information but since we are using `--worker`
+        # we may as well follow the standard protocol
         intra_addr, intra_port = Distributed.read_worker_host_port(config.io)
     else
         error("I/O not setup")
@@ -214,7 +220,7 @@ function Distributed.connect(manager::K8sClusterManager, pid::Int, config::Worke
     config.bind_addr = bind_addr
 
     # write out a subset of the connect_at required for further worker-worker connection setups
-    config.connect_at = (intra_addr, intra_port)
+    config.connect_at = (intra_addr, Int(intra_port))
 
     if config.io !== nothing
         let pid = pid
@@ -233,3 +239,5 @@ function parse_forward_info(str)
         error("Unable to parse port-forward response")
     end
 end
+
+# remotecall_fetch(() -> remotecall_fetch(myid, 3), 2)
