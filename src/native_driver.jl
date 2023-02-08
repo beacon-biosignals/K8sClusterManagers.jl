@@ -40,7 +40,7 @@ available.
   for each worker. Defaults to `$(repr(DEFAULT_WORKER_CPU))`,
 - `memory`: [Memory resource requested](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#meaning-of-memory)
   for each worker in bytes. Requests may provide a unit suffix (e.g. "G" for Gigabytes and
-  "GiB" for Gibibytes). Defaults to `$(repr(DEFAULT_WORKER_MEMORY))`.
+  "Gi" for Gibibytes). Defaults to `$(repr(DEFAULT_WORKER_MEMORY))`.
 - `pending_timeout`: The maximum number of seconds to wait for a "Pending" worker pod to
   enter the "Running" phase. Once the timeout has been reached the manager will continue
   with the number of workers available (`<= np`). Defaults to `180` (3 minutes).
