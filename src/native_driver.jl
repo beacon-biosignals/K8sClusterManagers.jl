@@ -118,21 +118,19 @@ function Distributed.launch(manager::K8sClusterManager, params::Dict, launched::
                 # Redirect any stdout/stderr from the worker to be displayed on the manager.
                 # Note: `start_worker` (via `--worker`) automatically redirects stderr to
                 # stdout.
-                # p = open(detach(`$(kubectl()) logs -f pod/$pod_name`), "r+")
+                p = open(detach(`$(kubectl()) logs -f pod/$pod_name`), "r+")
 
                 # TODO: Seems weird to have this here but this is just a PoC
                 pf = open(detach(`$(kubectl()) port-forward --address 127.0.0.1 $pod_name :9050`), "r+")
-                sleep(5)
-                m = match(r"127\.0\.0\.1:(\d+)", readline(pf))
-                local_port = parse(Int, m.captures[1])
+                local_addr, local_port = parse_forward_info(readline(pf.out))
 
-                @show local_port
+                @show local_addr local_port
 
                 config = WorkerConfig()
-                config.host = "127.0.0.1"
+                config.host = local_addr
                 config.port = local_port
-                # config.io = p.out
-                config.userdata = (; pod_name=pod_name, port_forward=pf, local_port)
+                config.io = p.out
+                config.userdata = (; pod_name=pod_name, port_forward=pf)
 
                 push!(launched, config)
                 notify(c)
@@ -196,22 +194,21 @@ function Distributed.connect(manager::K8sClusterManager, pid::Int, config::Worke
 
     # master connecting to workers
     if config.io !== nothing
-        (bind_addr, port::Int) = Distributed.read_worker_host_port(config.io)
-        pubhost = something(config.host, bind_addr)
-        config.host = pubhost
-        config.port = port
+        intra_addr, intra_port = Distributed.read_worker_host_port(config.io)
     else
-        pubhost = Base.notnothing(config.host)
-        port = Base.notnothing(config.port)
-        bind_addr = something(config.bind_addr, pubhost)
+        error("I/O not setup")
     end
 
-    (s, bind_addr) = Distributed.connect_to_worker(bind_addr, port)
+    @show intra_addr intra_port
 
+    local_addr = Base.notnothing(config.host)
+    local_port = Base.notnothing(config.port)
+
+    s, bind_addr = Distributed.connect_to_worker(local_addr, local_port)
     config.bind_addr = bind_addr
 
     # write out a subset of the connect_at required for further worker-worker connection setups
-    config.connect_at = (bind_addr, port)
+    config.connect_at = (intra_addr, intra_port)
 
     if config.io !== nothing
         let pid = pid
@@ -222,5 +219,11 @@ function Distributed.connect(manager::K8sClusterManager, pid::Int, config::Worke
     (s, s)
 end
 
-# https://github.com/kubernetes/kubectl/issues/1169
-# https://github.com/kubernetes/kubectl/issues/1363
+function parse_forward_info(str)
+    m = match(r"^Forwarding from (.*):(\d+) ->", str)
+    if m !== nothing
+        return (m.captures[1], parse(UInt16, m.captures[2]))
+    else
+        error("Unable to parse port-forward response")
+    end
+end
