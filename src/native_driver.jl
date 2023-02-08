@@ -6,7 +6,7 @@ const DEREGISTER_ALERT = Condition()
 
 struct K8sClusterManager <: ClusterManager
     np::Int
-    pod_name::String
+    hostname::String
     image::String
     cpu::String
     memory::String
@@ -30,7 +30,7 @@ available.
 
 - `namespace`: the Kubernetes namespace to launch worker pods within. Defaults to
   `current_namespace()`.
-- `manager_pod_name`: the name of the manager pod. Defaults to `ENV["HOSTNAME"]` which is
+- `manager_hostname`: the hostname of the manager. Defaults to `ENV["HOSTNAME"]` which is
   the name of the pod when executed inside of a Kubernetes pod.
 - `image`: Docker image to use for the workers. Defaults to using the image of the Julia
   caller if running within a pod using a single container otherwise is a required argument.
@@ -47,7 +47,7 @@ available.
 """
 function K8sClusterManager(np::Integer;
                            namespace::String=current_namespace(),
-                           manager_pod_name::String=get(ENV, "HOSTNAME", "localhost"),
+                           manager_hostname::String=get(hostname, ENV, "HOSTNAME"),
                            image="julia:$VERSION",
                            cpu=DEFAULT_WORKER_CPU,
                            memory=DEFAULT_WORKER_MEMORY,
@@ -56,19 +56,19 @@ function K8sClusterManager(np::Integer;
 
     # Default to using the image of the pod if possible
     if image === nothing
-        pod = get_pod(manager_pod_name)
+        pod = get_pod(manager_hostname)
         images = map(c -> c["image"], pod["spec"]["containers"])
 
         if length(images) == 1
             image = first(images)
         elseif length(images) > 0
-            error("Unable to determine image from pod \"$manager_pod_name\" which uses multiple containers")
+            error("Unable to determine image from pod \"$manager_hostname\" which uses multiple containers")
         else
-            error("Unable to find any images for pod \"$manager_pod_name\"")
+            error("Unable to find any images for pod \"$manager_hostname\"")
         end
     end
 
-    return K8sClusterManager(np, manager_pod_name, image, string(cpu), string(memory), pending_timeout, configure)
+    return K8sClusterManager(np, manager_hostname, image, string(cpu), string(memory), pending_timeout, configure)
 end
 
 struct TimeoutException <: Exception
@@ -78,7 +78,7 @@ end
 Base.showerror(io::IO, e::TimeoutException) = print(io, "TimeoutException: ", e.msg)
 
 function worker_pod_spec(manager::K8sClusterManager; kwargs...)
-    pod = worker_pod_spec(; manager_name=manager.pod_name,
+    pod = worker_pod_spec(; manager_name=manager.hostname,
                           image=manager.image,
                           cpu=manager.cpu,
                           memory=manager.memory,
@@ -248,5 +248,7 @@ function parse_forward_info(str)
         error("Unable to parse port-forward response")
     end
 end
+
+hostname() = String(chomp(read(`hostname`, String)))
 
 # remotecall_fetch(() -> remotecall_fetch(myid, 3), 2)
