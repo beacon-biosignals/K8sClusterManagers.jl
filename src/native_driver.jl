@@ -102,6 +102,12 @@ function Distributed.launch(manager::K8sClusterManager, params::Dict, launched::
     # Note: User-defined `configure` function may or may-not be mutating
     worker_manifest = manager.configure(worker_manifest)
 
+    # Hacky call to trigger TOTP outside of async block
+    try
+        get_pod("foo")
+    catch e
+    end
+
     @sync for i in 1:manager.np
         @async begin
             pod_name = create_pod(worker_manifest)
