@@ -118,10 +118,10 @@ function Distributed.launch(manager::K8sClusterManager, params::Dict, launched::
                 # Redirect any stdout/stderr from the worker to be displayed on the manager.
                 # Note: `start_worker` (via `--worker`) automatically redirects stderr to
                 # stdout.
-                p = open(detach(`$(kubectl()) logs -f pod/$pod_name`), "r+")
+                # p = open(detach(`$(kubectl()) logs -f pod/$pod_name`), "r+")
 
                 # TODO: Seems weird to have this here but this is just a PoC
-                pf = open(detach(`$(kubectl()) port-forward --address 127.0.0.1 $pod_name 9050:9050`), "r+")
+                pf = open(detach(`$(kubectl()) port-forward --address 127.0.0.1 $pod_name :9050`), "r+")
                 sleep(5)
                 m = match(r"127\.0\.0\.1:(\d+)", readline(pf))
                 local_port = parse(Int, m.captures[1])
@@ -129,7 +129,9 @@ function Distributed.launch(manager::K8sClusterManager, params::Dict, launched::
                 @show local_port
 
                 config = WorkerConfig()
-                config.io = p.out
+                config.host = "127.0.0.1"
+                config.port = local_port
+                # config.io = p.out
                 config.userdata = (; pod_name=pod_name, port_forward=pf, local_port)
 
                 push!(launched, config)
