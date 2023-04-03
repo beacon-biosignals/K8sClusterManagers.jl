@@ -54,17 +54,21 @@ jobs:
           DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}
 
   cluster-test:
-    name: Cluster Test - K8s ${{ matrix.k8s-version }}
+    name: Cluster Test - Julia ${{matrix.julia-version }} - K8s ${{ matrix.k8s-version }} - minikube ${{ matrix.minikube-version }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
+        julia-version:
+          - "1"
         # Support the latest versions of the supported releases: https://kubernetes.io/releases/.
         # These must be full version numbers including the patch.
         k8s-version:
           - "1.24.12"
           - "1.25.8"
           - "1.26.3"
+        minikube-version:
+          - "1.29.0"
     env:
       K8S_CLUSTER_TESTS: "true"
     steps:
@@ -73,7 +77,7 @@ jobs:
           fetch-depth: 0
       - uses: julia-actions/setup-julia@v1
         with:
-          version: "1"
+          version: ${{ matrix.julia-version }}
       - uses: julia-actions/cache@v1
       - uses: julia-actions/julia-buildpkg@v1
 
@@ -98,7 +102,7 @@ jobs:
         uses: manusa/actions-setup-minikube@v2.7.2
         with:
           # https://github.com/kubernetes/minikube/releases
-          minikube version: v1.29.0
+          minikube version: v${{ matrix.minikube-version }}
           # Needs to match the tags format: https://github.com/kubernetes/kubernetes/tags
           kubernetes version: v${{ matrix.k8s-version }}
           driver: docker
