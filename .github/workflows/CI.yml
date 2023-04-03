@@ -125,6 +125,7 @@ jobs:
       - name: Save Docker image
         run: |
           image_path="./images/$K8S_CLUSTER_MANAGERS_TEST_IMAGE"
+          mkdir -p "$(dirname "$image_path")"
           docker save "$K8S_CLUSTER_MANAGERS_TEST_IMAGE" >"$image_path"
           echo "IMAGE_PATH=$image_path" | tee -a "$GITHUB_ENV"
 
