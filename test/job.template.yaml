@@ -42,8 +42,10 @@ kind: Job
 metadata:
   name: {{{:job_name}}}
 spec:
-  # Clean up finished jobs
-  ttlSecondsAfterFinished: 10
+  # Avoid using `ttlSecondsAfterFinished` as this will cause failed jobs to be cleaned up
+  # which makes debugging failures harder. Instead we'll just manually delete the created
+  # resources.
+
   # Stop the job from creating a new pod when the container exits in error
   backoffLimit: 0
   template:

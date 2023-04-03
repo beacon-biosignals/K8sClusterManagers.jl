@@ -27,6 +27,15 @@ function wait_job(job_name; condition=!isempty, timeout=60)
     end
 end
 
+function delete_job(name::AbstractString; wait::Bool=true)
+    kubectl_cmd = `$(kubectl()) delete job/$name --wait=$wait`
+    err = IOBuffer()
+    run(pipeline(ignorestatus(kubectl_cmd), stdout=devnull, stderr=err))
+
+    err.size > 0 && throw(KubeError(err))
+    return nothing
+end
+
 pod_exists(pod_name) = success(`$(kubectl()) get pod/$pod_name`)
 
 # Will fail if called and the job is in state "Waiting"
