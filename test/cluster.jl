@@ -49,7 +49,6 @@ if !haskey(ENV, "K8S_CLUSTER_MANAGERS_TEST_IMAGE")
     # run(pipeline(`docker save $TEST_IMAGE`, `minikube ssh --native-ssh=false -- docker load`))
 end
 
-
 @testset "pod control" begin
     pod_control_manifest = YAML.load_file(joinpath(@__DIR__, "pod-control.yaml"))
 
@@ -443,8 +442,13 @@ let job_name = "test-pending-timeout"
                 return pod
             end
 
-            # Request 1 exbibyte of memory (should always fail)
-            mgr = K8sClusterManager(1; configure, pending_timeout=1, memory="1Ei")
+            # Make a worker memory request so large that it will always fail.
+            # Previously with Kubenetes 1.22 we used "1Ei" (1 exbibyte) as this large
+            # value but this now fails with Kubernetes 1.26 so we'll use "1Pi" (1 pebibyte)
+            # instead.
+            # TODO: Reproduce the "1Ei" failure outside of K8sClusterManagers and file an
+            # issue for this.
+            mgr = K8sClusterManager(1; configure, pending_timeout=1, memory="1Pi")
             pids = addprocs(mgr)
 
             println("Num Processes: ", nprocs())
