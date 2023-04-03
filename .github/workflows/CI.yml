@@ -112,10 +112,11 @@ jobs:
             docker-image-cache-
       - name: Load Docker image
         run: |
-          image_path="./images/$IMAGE_REPO:$PARENT_SHORT_SHA"
-          if [ -f "$image_path" ]; then
-              docker load <"$image_path"
-              rm "$image_path"  # Avoid storing the old image in the new cache entry
+          parent_image_path="./images/$IMAGE_REPO:$PARENT_SHORT_SHA"
+          if [ -f "$parent_image_path" ]; then
+              docker load <"$parent_image_path"
+              docker tag "$IMAGE_REPO:$PARENT_SHORT_SHA" "$IMAGE_REPO:$HEAD_SHORT_SHA"
+              rm "$parent_image_path"  # Avoid storing the old image in the new cache entry
           fi
       - name: Build Docker image
         run: |
