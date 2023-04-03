@@ -83,3 +83,30 @@ function report(job_name, pods::Pair...)
         end
     end
 end
+
+function minikube_docker_env()
+    env_vars = Pair{String,String}[]
+    open(`minikube docker-env`) do f
+        while !eof(f)
+            line = readline(f)
+
+            if startswith(line, "export")
+                line = replace(line, r"^export " => "")
+                key, value = split(line, '='; limit=2)
+                push!(env_vars, key => unquote(value))
+            end
+        end
+    end
+
+    return env_vars
+end
+
+isquoted(str::AbstractString) = startswith(str, '"') && endswith(str, '"')
+
+function unquote(str::AbstractString)
+    if isquoted(str)
+        return replace(SubString(str, 2, lastindex(str) - 1), "\\\"" => "\"")
+    else
+        throw(ArgumentError("Passed in string is not quoted"))
+    end
+end
