@@ -88,7 +88,7 @@ jobs:
       # - minikube "docker" driver requires local-only images to present on the node where
       #   it is used (all nodes in practice)
       - name: Set up minikube
-        uses: manusa/actions-setup-minikube@v2.4.0
+        uses: manusa/actions-setup-minikube@v2.7.2
         with:
           # https://github.com/kubernetes/minikube/releases
           minikube version: v1.22.0
