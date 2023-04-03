@@ -59,12 +59,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Support the latest versions of the supported releases: https://kubernetes.io/releases/
-        # These need to match the tags format: https://github.com/kubernetes/kubernetes/tags
+        # Support the latest versions of the supported releases: https://kubernetes.io/releases/.
+        # These must be full version numbers including the patch.
         k8s-version:
           - "1.24.12"
           - "1.25.8"
-          - "1.26"
+          - "1.26.3"
     env:
       K8S_CLUSTER_TESTS: "true"
     steps:
