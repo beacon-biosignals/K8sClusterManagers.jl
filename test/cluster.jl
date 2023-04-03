@@ -162,6 +162,50 @@ end
     end
 end
 
+let job_name = "test-isk8s"
+    @testset "$job_name" begin
+        code = """
+            using K8sClusterManagers
+            println("isk8s: ", isk8s())
+            """
+
+        command = ["julia"]
+        args = ["-e", escape_yaml_string(code)]
+        manifest = render(JOB_TEMPLATE; job_name, image=TEST_IMAGE, command, args)
+        k8s_create(IOBuffer(manifest))
+
+        # Wait for job to reach status: "Complete" or "Failed".
+        #
+        # There are a few scenarios where the job may become stuck:
+        # - Insufficient cluster resources (pod stuck in the "Pending" status)
+        # - Local Docker image does not exist (ErrImageNeverPull)
+        @info "Waiting for $job_name job. This could take up to 1 minute..."
+        wait_job(job_name, condition=!isempty, timeout=1 * 60)
+
+        manager_pod = first(pod_names("job-name" => job_name))
+
+        manager_log = pod_logs(manager_pod)
+        log_matches = collect(eachmatch(r"isk8s: (?<isk8s>.*?)\r?\n", manager_log))
+
+        test_results = [
+            @test get_job(job_name, jsonpath="{.status..type}") == "Complete"
+            @test pod_exists(manager_pod)
+            @test pod_phase(manager_pod) == "Succeeded"
+
+            @test length(log_matches) == 1
+            @test log_matches[1][:isk8s] == "true"
+        ]
+
+        # Display details to assist in debugging the failure
+        if any(r -> !(r isa Test.Pass || r isa Test.Broken), test_results)
+            report(job_name, "manager" => manager_pod)
+        else
+            @info "Deleting job/pods for $job_name"
+            delete_job(job_name; wait=false)
+        end
+    end
+end
+
 let job_name = "test-success"
     @testset "$job_name" begin
         code = """
