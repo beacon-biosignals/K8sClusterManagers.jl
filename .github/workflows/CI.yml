@@ -4,6 +4,7 @@ on:
   push:
     branches: main
     tags: "*"
+
 jobs:
   test:
     name: Julia ${{ matrix.version }} - ${{ matrix.os }} - ${{ matrix.arch }} - ${{ github.event_name }}
@@ -70,11 +71,24 @@ jobs:
         minikube-version:
           - "1.29.0"
     env:
+      # Reference the HEAD commit which triggerred this workflow. By default PRs use a merge commit
+      SHA: ${{ github.event.pull_request.head.sha || github.sha }}
       K8S_CLUSTER_TESTS: "true"
+      IMAGE_REPO: "k8s-cluster-managers"
     steps:
       - uses: actions/checkout@v3
         with:
-          fetch-depth: 0
+          ref: ${{ env.SHA }}  # Always checkout HEAD commit
+          fetch-depth: 2  # To determine parent commit SHA
+      - name: Determine SHAs
+        id: sha
+        run: |
+          head_short_sha="$(git rev-parse --short HEAD)"
+          parent_short_sha="$(git rev-parse --short HEAD^)"
+          echo "head_short_sha=$head_short_sha" | tee -a "$GITHUB_OUTPUT"
+          echo "parent_short_sha=$parent_short_sha" | tee -a "$GITHUB_OUTPUT"
+          echo "HEAD_SHORT_SHA=$head_short_sha" | tee -a "$GITHUB_ENV"
+          echo "PARENT_SHORT_SHA=$parent_short_sha" | tee -a "$GITHUB_ENV"
       - uses: julia-actions/setup-julia@v1
         with:
           version: ${{ matrix.julia-version }}
@@ -84,12 +98,37 @@ jobs:
       # https://github.com/marketplace/actions/docker-setup-buildx
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
+
+      # Allow Docker layers to persist between CI workflows. Using SHAs as our keys to allow for workflow restarts
+      # to pull the correct cache data instead of returning the most recent cached data.
+      # https://docs.github.com/en/actions/using-workflows/caching-dependencies-to-speed-up-workflows#matching-a-cache-key
+      - uses: actions/cache/restore@v3
+        id: restore-docker-image-cache
+        with:
+          key: docker-image-cache-${{ steps.sha.outputs.head_short_sha }}
+          path: ./images
+          restore-keys: |
+            docker-image-cache-${{ steps.sha.outputs.parent_short_sha }}
+            docker-image-cache-
+      - name: Load Docker image
+        run: |
+          parent_image_path="./images/$IMAGE_REPO:$PARENT_SHORT_SHA"
+          if [ -f "$parent_image_path" ]; then
+              docker load <"$parent_image_path"
+              docker tag "$IMAGE_REPO:$PARENT_SHORT_SHA" "$IMAGE_REPO:$HEAD_SHORT_SHA"
+              rm "$parent_image_path"  # Avoid storing the old image in the new cache entry
+          fi
       - name: Build Docker image
         run: |
-          GIT_REV=$(git rev-parse --short HEAD)
-          IMAGE=k8s-cluster-managers:$GIT_REV
-          echo "K8S_CLUSTER_MANAGERS_TEST_IMAGE=$IMAGE" >> $GITHUB_ENV
-          docker build -t $IMAGE .
+          image="$IMAGE_REPO:$HEAD_SHORT_SHA"
+          docker build -t "$image" .
+          echo "K8S_CLUSTER_MANAGERS_TEST_IMAGE=$image" | tee -a "$GITHUB_ENV"
+      - name: Save Docker image
+        run: |
+          image_path="./images/$K8S_CLUSTER_MANAGERS_TEST_IMAGE"
+          mkdir -p "$(dirname "$image_path")"
+          docker save "$K8S_CLUSTER_MANAGERS_TEST_IMAGE" >"$image_path"
+          echo "IMAGE_PATH=$image_path" | tee -a "$GITHUB_ENV"
 
       # Factors influencing the setup of the "local" Kubernetes cluster:
       # - Limited resources on GitHub runners only allow running a 1 pod at a time with
@@ -118,9 +157,16 @@ jobs:
         run: |
           for node in $(minikube node list | cut -f1); do
               echo "Transfering image to node $node..."
-              docker save $K8S_CLUSTER_MANAGERS_TEST_IMAGE | minikube ssh --node $node --native-ssh=false -- docker load
+              cat "$IMAGE_PATH" | minikube ssh --node $node --native-ssh=false -- docker load
           done
 
       - uses: julia-actions/julia-runtest@v1
       - uses: julia-actions/julia-processcoverage@v1
       - uses: codecov/codecov-action@v3
+
+      # https://github.com/actions/cache/tree/main/save#always-save-cache
+      - uses: actions/cache/save@v3
+        if: always()
+        with:
+          key: ${{ steps.restore-docker-image-cache.outputs.cache-primary-key }}
+          path: ./images
