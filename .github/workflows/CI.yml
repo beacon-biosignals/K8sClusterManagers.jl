@@ -54,8 +54,17 @@ jobs:
           DOCUMENTER_KEY: ${{ secrets.DOCUMENTER_KEY }}
 
   cluster-test:
-    name: Cluster Test
+    name: Cluster Test - K8s ${{ matrix.k8s-version }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Support the latest versions of the supported releases: https://kubernetes.io/releases/
+        # These need to match the tags format: https://github.com/kubernetes/kubernetes/tags
+        k8s-version:
+          - "1.24.12"
+          - "1.25.8"
+          - "1.26"
     env:
       K8S_CLUSTER_TESTS: "true"
     steps:
@@ -89,9 +98,9 @@ jobs:
         uses: manusa/actions-setup-minikube@v2.7.2
         with:
           # https://github.com/kubernetes/minikube/releases
-          minikube version: v1.22.0
-          # https://github.com/kubernetes/kubernetes/releases
-          kubernetes version: v1.21.4
+          minikube version: v1.29.0
+          # Needs to match the tags format: https://github.com/kubernetes/kubernetes/tags
+          kubernetes version: v${{ matrix.k8s-version }}
           driver: docker
           start args: --nodes=2 --cni=kindnet
 
