@@ -27,6 +27,15 @@ function wait_job(job_name; condition=!isempty, timeout=60)
     end
 end
 
+function delete_job(name::AbstractString; wait::Bool=true)
+    kubectl_cmd = `$(kubectl()) delete job/$name --wait=$wait`
+    err = IOBuffer()
+    run(pipeline(ignorestatus(kubectl_cmd), stdout=devnull, stderr=err))
+
+    err.size > 0 && throw(KubeError(err))
+    return nothing
+end
+
 pod_exists(pod_name) = success(`$(kubectl()) get pod/$pod_name`)
 
 # Will fail if called and the job is in state "Waiting"
@@ -81,5 +90,32 @@ function report(job_name, pods::Pair...)
         else
             @info "No logs for $title ($pod_name)"
         end
+    end
+end
+
+function minikube_docker_env()
+    env_vars = Pair{String,String}[]
+    open(`minikube docker-env`) do f
+        while !eof(f)
+            line = readline(f)
+
+            if startswith(line, "export")
+                line = replace(line, r"^export " => "")
+                key, value = split(line, '='; limit=2)
+                push!(env_vars, key => unquote(value))
+            end
+        end
+    end
+
+    return env_vars
+end
+
+isquoted(str::AbstractString) = startswith(str, '"') && endswith(str, '"')
+
+function unquote(str::AbstractString)
+    if isquoted(str)
+        return replace(SubString(str, 2, lastindex(str) - 1), "\\\"" => "\"")
+    else
+        throw(ArgumentError("Passed in string is not quoted"))
     end
 end

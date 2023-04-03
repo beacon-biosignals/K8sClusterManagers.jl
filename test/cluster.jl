@@ -35,17 +35,19 @@ const POD_OUTPUT_REGEX = r"From worker (?<worker_id>\d+):\s+(?<output>.*?)\r?\n"
 # As a convenience we'll automatically build the Docker image when a user uses `Pkg.test()`.
 # If the environmental variable is set we expect the Docker image has already been built.
 if !haskey(ENV, "K8S_CLUSTER_MANAGERS_TEST_IMAGE")
-    if success(`command -v minikube`) && !haskey(ENV, "MINIKUBE_ACTIVE_DOCKERD")
-        @warn "minikube users should run `eval \$(minikube docker-env)` before executing " *
-            "tests. Otherwise you may see pods fail with the reason \"ErrImageNeverPull\""
+    if readchomp(`$(kubectl) config current-context`) == "minikube" && !haskey(ENV, "MINIKUBE_ACTIVE_DOCKERD")
+        # When using a minikue cluster we need to build the image within the minikube
+        # environment otherwise we'll see pods fail with the reason "ErrImageNeverPull".
+        withenv(minikube_docker_env()...) do
+            run(`docker build -t $TEST_IMAGE $PKG_DIR`)
+        end
+    else
+        run(`docker build -t $TEST_IMAGE $PKG_DIR`)
     end
-
-    run(`docker build -t $TEST_IMAGE $PKG_DIR`)
 
     # Alternate build call which works on Apple Silicon
     # run(pipeline(`docker save $TEST_IMAGE`, `minikube ssh --native-ssh=false -- docker load`))
 end
-
 
 @testset "pod control" begin
     pod_control_manifest = YAML.load_file(joinpath(@__DIR__, "pod-control.yaml"))
@@ -226,6 +228,10 @@ let job_name = "test-success"
         # Display details to assist in debugging the failure
         if any(r -> !(r isa Test.Pass || r isa Test.Broken), test_results)
             report(job_name, "manager" => manager_pod, "worker" => worker_pod)
+        else
+            @info "Deleting job/pods for $job_name"
+            delete_job(job_name; wait=false)
+            delete_pod(worker_pod; wait=false)
         end
     end
 end
@@ -295,6 +301,10 @@ let job_name = "test-multi-addprocs"
             end
 
             report(job_name, "manager" => manager_pod, worker_pairs...)
+        else
+            @info "Deleting job/pods for $job_name"
+            delete_job(job_name; wait=false)
+            foreach(pod_name -> delete_pod(pod_name; wait=false), worker_pods)
         end
     end
 end
@@ -340,6 +350,10 @@ let job_name = "test-interrupt"
         # Display details to assist in debugging the failure
         if any(r -> !(r isa Test.Pass || r isa Test.Broken), test_results)
             report(job_name, "manager" => manager_pod, "worker" => worker_pod)
+        else
+            @info "Deleting job/pods for $job_name"
+            delete_job(job_name; wait=false)
+            delete_pod(worker_pod; wait=false)
         end
     end
 end
@@ -409,6 +423,10 @@ let job_name = "test-oom"
         # Display details to assist in debugging the failure
         if any(r -> !(r isa Test.Pass || r isa Test.Broken), test_results)
             report(job_name, "manager" => manager_pod, "worker" => worker_pod)
+        else
+            @info "Deleting job/pods for $job_name"
+            delete_job(job_name; wait=false)
+            delete_pod(worker_pod; wait=false)
         end
     end
 end
@@ -424,8 +442,13 @@ let job_name = "test-pending-timeout"
                 return pod
             end
 
-            # Request 1 exbibyte of memory (should always fail)
-            mgr = K8sClusterManager(1; configure, pending_timeout=1, memory="1Ei")
+            # Make a worker memory request so large that it will always fail.
+            # Previously with Kubenetes 1.22 we used "1Ei" (1 exbibyte) as this large
+            # value but this now fails with Kubernetes 1.26 so we'll use "1Pi" (1 pebibyte)
+            # instead.
+            # TODO: Reproduce the "1Ei" failure outside of K8sClusterManagers and file an
+            # issue for this.
+            mgr = K8sClusterManager(1; configure, pending_timeout=1, memory="1Pi")
             pids = addprocs(mgr)
 
             println("Num Processes: ", nprocs())
@@ -466,6 +489,9 @@ let job_name = "test-pending-timeout"
         # Display details to assist in debugging the failure
         if any(r -> !(r isa Test.Pass || r isa Test.Broken), test_results)
             report(job_name, "manager" => manager_pod)
+        else
+            @info "Deleting job/pods for $job_name"
+            delete_job(job_name; wait=false)
         end
     end
 end
