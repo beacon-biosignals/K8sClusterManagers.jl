@@ -21,33 +21,28 @@ jobs:
     env:
       K8S_CLUSTER_TESTS: "false"
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           fetch-depth: 0
       - uses: julia-actions/setup-julia@v1
         with:
           version: ${{ matrix.version }}
           arch: ${{ matrix.arch }}
-      - uses: actions/cache@v2
-        with:
-          path: ~/.julia/artifacts
-          key: ${{ runner.os }}-test-artifacts-${{ hashFiles('**/Project.toml') }}
-          restore-keys: ${{ runner.os }}-test-artifacts
+      - uses: julia-actions/cache@v1
       - uses: julia-actions/julia-buildpkg@v1
       - uses: julia-actions/julia-runtest@v1
       - uses: julia-actions/julia-processcoverage@v1
-      - uses: codecov/codecov-action@v2
-        with:
-          files: lcov.info
+      - uses: codecov/codecov-action@v3
 
   docs:
     name: Documentation
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - uses: julia-actions/setup-julia@v1
         with:
           version: "1"
+      - uses: julia-actions/cache@v1
       - run: |
           julia --project=docs -e '
             using Pkg
@@ -64,17 +59,18 @@ jobs:
     env:
       K8S_CLUSTER_TESTS: "true"
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           fetch-depth: 0
       - uses: julia-actions/setup-julia@v1
         with:
           version: "1"
+      - uses: julia-actions/cache@v1
       - uses: julia-actions/julia-buildpkg@v1
 
       # https://github.com/marketplace/actions/docker-setup-buildx
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
+        uses: docker/setup-buildx-action@v2
       - name: Build Docker image
         run: |
           GIT_REV=$(git rev-parse --short HEAD)
@@ -90,7 +86,7 @@ jobs:
       # - minikube "docker" driver requires local-only images to present on the node where
       #   it is used (all nodes in practice)
       - name: Set up minikube
-        uses: manusa/actions-setup-minikube@v2.4.0
+        uses: manusa/actions-setup-minikube@v2.7.2
         with:
           # https://github.com/kubernetes/minikube/releases
           minikube version: v1.22.0
@@ -114,6 +110,4 @@ jobs:
 
       - uses: julia-actions/julia-runtest@v1
       - uses: julia-actions/julia-processcoverage@v1
-      - uses: codecov/codecov-action@v2
-        with:
-          files: lcov.info
+      - uses: codecov/codecov-action@v3
