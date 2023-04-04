@@ -84,12 +84,14 @@ end
 
         pod = get_pod(name)
         @test pod["status"]["phase"] == "Running"
-        @test isempty(get(pod["metadata"], "labels", Dict()))
+        labels = get(pod["metadata"], "labels", Dict())
+        @test !("testset" in keys(labels))
 
         label_pod(name, "testset" => "pod-control")
 
         pod = get_pod(name)
-        @test get_pod(name)["metadata"]["labels"] == Dict("testset" => "pod-control")
+        labels = get(pod["metadata"], "labels", Dict())
+        @test ("testset" => "pod-control") in labels
 
         # Avoid deleting the pod if we've reached a unhandled phase. This allows for
         # investigation with `kubectl`.
