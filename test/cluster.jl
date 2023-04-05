@@ -84,12 +84,14 @@ end
 
         pod = get_pod(name)
         @test pod["status"]["phase"] == "Running"
-        @test isempty(get(pod["metadata"], "labels", Dict()))
+        labels = get(pod["metadata"], "labels", Dict())
+        @test !("testset" in keys(labels))
 
         label_pod(name, "testset" => "pod-control")
 
         pod = get_pod(name)
-        @test get_pod(name)["metadata"]["labels"] == Dict("testset" => "pod-control")
+        labels = get(pod["metadata"], "labels", Dict())
+        @test ("testset" => "pod-control") in labels
 
         # Avoid deleting the pod if we've reached a unhandled phase. This allows for
         # investigation with `kubectl`.
@@ -165,8 +167,11 @@ let job_name = "test-success"
         code = """
             using Distributed, K8sClusterManagers
 
-            # Avoid trying to pull local-only image
             function configure(pod)
+                # Add a origin label for easy cleanup of test resources
+                push!(pod["metadata"]["labels"], "origin" => "k8s-cluster-manager-tests")
+
+                # Avoid trying to pull local-only image
                 pod["spec"]["containers"][1]["imagePullPolicy"] = "Never"
                 return pod
             end
@@ -241,8 +246,11 @@ let job_name = "test-multi-addprocs"
         code = """
             using Distributed, K8sClusterManagers
 
-            # Avoid trying to pull local-only image
             function configure(pod)
+                # Add a origin label for easy cleanup of test resources
+                push!(pod["metadata"]["labels"], "origin" => "k8s-cluster-manager-tests")
+
+                # Avoid trying to pull local-only image
                 pod["spec"]["containers"][1]["imagePullPolicy"] = "Never"
                 return pod
             end
@@ -314,8 +322,11 @@ let job_name = "test-interrupt"
         code = """
             using Distributed, K8sClusterManagers
 
-            # Avoid trying to pull local-only image
             function configure(pod)
+                # Add a origin label for easy cleanup of test resources
+                push!(pod["metadata"]["labels"], "origin" => "k8s-cluster-manager-tests")
+
+                # Avoid trying to pull local-only image
                 pod["spec"]["containers"][1]["imagePullPolicy"] = "Never"
                 return pod
             end
@@ -363,8 +374,11 @@ let job_name = "test-oom"
         code = """
             using Distributed, K8sClusterManagers
 
-            # Avoid trying to pull local-only image
             function configure(pod)
+                # Add a origin label for easy cleanup of test resources
+                push!(pod["metadata"]["labels"], "origin" => "k8s-cluster-manager-tests")
+
+                # Avoid trying to pull local-only image
                 pod["spec"]["containers"][1]["imagePullPolicy"] = "Never"
                 return pod
             end
@@ -436,8 +450,11 @@ let job_name = "test-pending-timeout"
         code = """
             using Distributed, K8sClusterManagers
 
-            # Avoid trying to pull local-only image
             function configure(pod)
+                # Add a origin label for easy cleanup of test resources
+                push!(pod["metadata"]["labels"], "origin" => "k8s-cluster-manager-tests")
+
+                # Avoid trying to pull local-only image
                 pod["spec"]["containers"][1]["imagePullPolicy"] = "Never"
                 return pod
             end
