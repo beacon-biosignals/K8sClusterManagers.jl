@@ -30,7 +30,7 @@ available.
 
 - `namespace`: the Kubernetes namespace to launch worker pods within. Defaults to
   `current_namespace()`.
-- `manager_pod_name`: the name of the manager pod. Defaults to `ENV["HOSTNAME"]` which is
+- `manager_pod_name`: the name of the manager pod. Defaults to `gethostname()` which is
   the name of the pod when executed inside of a Kubernetes pod.
 - `image`: Docker image to use for the workers. Defaults to using the image of the Julia
   caller if running within a pod using a single container otherwise is a required argument.
@@ -47,7 +47,7 @@ available.
 """
 function K8sClusterManager(np::Integer;
                            namespace::String=current_namespace(),
-                           manager_pod_name::String=get(ENV, "HOSTNAME", "localhost"),
+                           manager_pod_name::String=gethostname(),
                            image=nothing,
                            cpu=DEFAULT_WORKER_CPU,
                            memory=DEFAULT_WORKER_MEMORY,
