@@ -46,8 +46,8 @@ available.
   their creation. Defaults to `identity`.
 """
 function K8sClusterManager(np::Integer;
-                           namespace::String=current_namespace(),
-                           manager_pod_name::String=gethostname(),
+                           namespace::AbstractString=current_namespace(),
+                           manager_pod_name::AbstractString=gethostname(),
                            image=nothing,
                            cpu=DEFAULT_WORKER_CPU,
                            memory=DEFAULT_WORKER_MEMORY,
