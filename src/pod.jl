@@ -227,17 +227,6 @@ end
 Predicate for testing if the current process is running within a Kubernetes (K8s) pod.
 """
 function isk8s()
-    in_kubepod = false
-    @mock(isfile("/proc/self/cgroup")) || return in_kubepod
-    @mock open("/proc/self/cgroup") do fp
-        while !eof(fp)
-            line = chomp(readline(fp))
-            path_name = split(line, ':')[3]
-            if startswith(path_name, "/kubepods/")
-                in_kubepod = true
-                break
-            end
-        end
-    end
-    return in_kubepod
+    # https://kubernetes.io/docs/reference/kubectl/#in-cluster-authentication-and-namespace-overrides
+    return haskey(ENV, "KUBERNETES_SERVICE_HOST") && haskey(ENV, "KUBERNETES_SERVICE_PORT")
 end
