@@ -9,7 +9,9 @@ coverage:
 comment:
   show_carryforward_flags: true
 
-# Use `carryforward: true` to avoid misreporting coverage due to slow running cluster tests
-flag_management:
-  default_rules:
-    carryforward: true
+# Wait until 2x Julia unit tests jobs and 3x Cluster Test jobs have completed before reporting
+# coverage. Avoids reporting coverage too early which would show a misleading drop in code
+# coverage.
+# https://docs.codecov.com/docs/notifications#preventing-notifications-until-after-n-builds
+comment:
+  after_n_builds: 5
