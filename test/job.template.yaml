@@ -4,7 +4,7 @@ kind: Role
 metadata:
   name: julia-manager-role
   labels:
-    origin: k8s-cluster-manager-tests
+    k8s-cluster-managers-tests: "true"
 rules:
 - apiGroups: [""]  # "" indicates the core API group
   resources: ["pods"]
@@ -23,7 +23,7 @@ kind: ServiceAccount
 metadata:
   name: julia-manager-serviceaccount
   labels:
-    origin: k8s-cluster-manager-tests
+    k8s-cluster-managers-tests: "true"
 automountServiceAccountToken: true
 
 ---
@@ -32,7 +32,7 @@ kind: RoleBinding
 metadata:
   name: julia-manager-role-binding
   labels:
-    origin: k8s-cluster-manager-tests
+    k8s-cluster-managers-tests: "true"
 roleRef:
   kind: Role
   name: julia-manager-role
@@ -48,7 +48,7 @@ kind: Job
 metadata:
   name: {{{:job_name}}}
   labels:
-    origin: k8s-cluster-manager-tests
+    k8s-cluster-managers-tests: "true"
 spec:
   # Avoid using `ttlSecondsAfterFinished` as this will cause failed jobs to be cleaned up
   # which makes debugging failures harder. Instead we'll just manually delete the created
@@ -60,7 +60,7 @@ spec:
     # Note: Pods are automatically assigned the label `job-name` using the job's name
     metadata:
       labels:
-        origin: k8s-cluster-manager-tests
+        k8s-cluster-managers-tests: "true"
     spec:
       serviceAccountName: julia-manager-serviceaccount
       restartPolicy: Never

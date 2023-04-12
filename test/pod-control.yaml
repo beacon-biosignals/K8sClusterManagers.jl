@@ -3,7 +3,7 @@ kind: Pod
 metadata:
   generateName: test-pod-control-
   labels:
-    origin: k8s-cluster-manager-tests
+    k8s-cluster-managers-tests: "true"
 spec:
   restartPolicy: "Never"
   containers:
