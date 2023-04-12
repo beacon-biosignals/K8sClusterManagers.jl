@@ -64,9 +64,9 @@ jobs:
         # Support the latest versions of the supported releases: https://kubernetes.io/releases/.
         # These must be full version numbers including the patch.
         k8s-version:
-          - "1.24.12"
           - "1.25.8"
           - "1.26.3"
+          - "1.27.0"
         minikube-version:
           - "1.29.0"
     env:
