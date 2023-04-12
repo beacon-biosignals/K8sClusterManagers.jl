@@ -6,7 +6,7 @@ const DEREGISTER_ALERT = Condition()
 
 struct K8sClusterManager <: ClusterManager
     np::Int
-    pod_name::String
+    worker_prefix::String
     image::String
     cpu::String
     memory::String
@@ -32,6 +32,8 @@ available.
   `current_namespace()`.
 - `manager_pod_name`: the name of the manager pod. Defaults to `gethostname()` which is
   the name of the pod when executed inside of a Kubernetes pod.
+- `worker_prefix`: the prefix given to spawned workers. Defaults to
+  `"\$(manager_pod_name)-worker"`.
 - `image`: Docker image to use for the workers. Defaults to using the image of the Julia
   caller if running within a pod using a single container otherwise is a required argument.
 - `cpu`: [CPU resources requested](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#meaning-of-cpu)
@@ -47,7 +49,8 @@ available.
 """
 function K8sClusterManager(np::Integer;
                            namespace::AbstractString=current_namespace(),
-                           manager_pod_name::AbstractString=gethostname(),
+                           manager_pod_name=gethostname(),
+                           worker_prefix::AbstractString="$(manager_pod_name)-worker",
                            image=nothing,
                            cpu=DEFAULT_WORKER_CPU,
                            memory=DEFAULT_WORKER_MEMORY,
@@ -68,7 +71,7 @@ function K8sClusterManager(np::Integer;
         end
     end
 
-    return K8sClusterManager(np, manager_pod_name, image, string(cpu), string(memory), pending_timeout, configure)
+    return K8sClusterManager(np, worker_prefix, image, string(cpu), string(memory), pending_timeout, configure)
 end
 
 struct TimeoutException <: Exception
@@ -78,7 +81,7 @@ end
 Base.showerror(io::IO, e::TimeoutException) = print(io, "TimeoutException: ", e.msg)
 
 function worker_pod_spec(manager::K8sClusterManager; kwargs...)
-    pod = worker_pod_spec(; manager_name=manager.pod_name,
+    pod = worker_pod_spec(; worker_prefix=manager.worker_prefix,
                           image=manager.image,
                           cpu=manager.cpu,
                           memory=manager.memory,
