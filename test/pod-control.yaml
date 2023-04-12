@@ -3,7 +3,7 @@ kind: Pod
 metadata:
   generateName: test-pod-control-
   labels:
-    k8s-cluster-managers-tests: "true"
+    package-test: K8sClusterManagers.jl
 spec:
   restartPolicy: "Never"
   containers:

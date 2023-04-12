@@ -29,8 +29,8 @@ const TEST_IMAGE = get(ENV, "K8S_CLUSTER_MANAGERS_TEST_IMAGE", "k8s-cluster-mana
 
 # Add a labels for easy cleanup of test resources. Any changes to these common labels also
 # needs to occur in the YAML files included in the test directory
-# e.g. `kubectl delete pod,job,sa,role,rolebinding -l k8s-cluster-managers-tests=true`
-const COMMON_LABELS = ("k8s-cluster-managers-tests" => "true",)
+# e.g. `kubectl delete pod,job,sa,role,rolebinding -l package-test=K8sClusterManagers.jl`
+const COMMON_LABELS = ("package-test" => "K8sClusterManagers.jl",)
 
 const POD_NAME_REGEX = r"Worker pod (?<worker_id>\d+): (?<pod_name>[a-z0-9.-]+)"
 
