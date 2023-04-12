@@ -67,8 +67,9 @@ jobs:
           - "1.25.8"
           - "1.26.3"
           - "1.27.0"
+        # https://github.com/kubernetes/minikube/releases
         minikube-version:
-          - "1.29.0"
+          - "1.30.1"
     env:
       K8S_CLUSTER_TESTS: "true"
     steps:
