@@ -87,7 +87,7 @@ end
 end
 
 @testset "worker_pod_spec" begin
-    kwargs = (; worker_prefix="test-wkr", image="julia", cmd=`julia`)
+    kwargs = (; worker_prefix="test-wkr", image="julia", cmd=`julia`, cluster_cookie="🍪")
     pod = K8sClusterManagers.worker_pod_spec(; kwargs...)
 
     @test keys(pod) == Set(["apiVersion", "kind", "metadata", "spec"])
@@ -96,8 +96,9 @@ end
 
     @test keys(pod["metadata"]) == Set(["generateName", "labels"])
     @test pod["metadata"]["generateName"] == "test-wkr-"
-    @test keys(pod["metadata"]["labels"]) == Set(["worker-prefix"])
+    @test keys(pod["metadata"]["labels"]) == Set(["worker-prefix", "cluster-cookie"])
     @test pod["metadata"]["labels"]["worker-prefix"] == "test-wkr"
+    @test pod["metadata"]["labels"]["cluster-cookie"] == "🍪"
 
     @test pod["spec"]["restartPolicy"] == "Never"
     @test length(pod["spec"]["containers"]) == 1

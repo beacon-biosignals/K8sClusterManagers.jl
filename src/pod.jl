@@ -192,6 +192,7 @@ end
 
 function worker_pod_spec!(pod::AbstractDict;
                           worker_prefix::AbstractString,
+                          cluster_cookie::AbstractString,
                           image::AbstractString,
                           cmd::Cmd,
                           cpu=DEFAULT_WORKER_CPU,
@@ -201,6 +202,7 @@ function worker_pod_spec!(pod::AbstractDict;
 
     # Set a label with the `worker_prefix` to support easy termination of all workers
     pod["metadata"]["labels"]["worker-prefix"] = worker_prefix
+    pod["metadata"]["labels"]["cluster-cookie"] = cluster_cookie
 
     worker_container =
         rdict("name" => "worker",
