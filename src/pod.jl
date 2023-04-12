@@ -191,16 +191,16 @@ function worker_pod_spec(pod::AbstractDict=POD_TEMPLATE; kwargs...)
 end
 
 function worker_pod_spec!(pod::AbstractDict;
-                          manager_name::AbstractString,
+                          worker_prefix::AbstractString,
                           image::AbstractString,
                           cmd::Cmd,
                           cpu=DEFAULT_WORKER_CPU,
                           memory=DEFAULT_WORKER_MEMORY,
                           service_account_name=nothing)
-    pod["metadata"]["generateName"] = "$(manager_name)-worker-"
+    pod["metadata"]["generateName"] = "$(worker_prefix)-"
 
-    # Set a label with the manager name to support easy termination of all workers
-    pod["metadata"]["labels"]["manager"] = manager_name
+    # Set a label with the `worker_prefix` to support easy termination of all workers
+    pod["metadata"]["labels"]["worker-prefix"] = worker_prefix
 
     worker_container =
         rdict("name" => "worker",

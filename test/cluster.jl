@@ -208,8 +208,10 @@ end
 
 let job_name = "test-success"
     @testset "$job_name" begin
+        worker_prefix = "$(job_name)-worker"
         code = """
             using Distributed, K8sClusterManagers
+            worker_prefix = "$worker_prefix"
 
             function configure(pod)
                 # Add a origin label for easy cleanup of test resources
@@ -219,7 +221,7 @@ let job_name = "test-success"
                 pod["spec"]["containers"][1]["imagePullPolicy"] = "Never"
                 return pod
             end
-            pids = addprocs(K8sClusterManager(1; configure, pending_timeout=60, cpu="0.5", memory="300Mi"))
+            pids = addprocs(K8sClusterManager(1; configure, worker_prefix, pending_timeout=60, cpu="0.5", memory="300Mi"))
 
             println("Num Processes: ", nprocs())
             for i in workers()
@@ -246,8 +248,8 @@ let job_name = "test-success"
         @info "Waiting for $job_name job. This could take up to 4 minutes..."
         wait_job(job_name, condition=!isempty, timeout=4 * 60)
 
-        manager_pod = first(pod_names("job-name" => job_name))
-        worker_pod = first(pod_names("manager" => manager_pod))
+        manager_pod = only(pod_names("job-name" => job_name))
+        worker_pod = only(pod_names("worker-prefix" => worker_prefix))
 
         manager_log = pod_logs(manager_pod)
         call_matches = collect(eachmatch(POD_NAME_REGEX, manager_log))
@@ -287,8 +289,10 @@ end
 
 let job_name = "test-multi-addprocs"
     @testset "$job_name" begin
+        worker_prefix = "$(job_name)-worker"
         code = """
             using Distributed, K8sClusterManagers
+            worker_prefix = "$worker_prefix"
 
             function configure(pod)
                 # Add a origin label for easy cleanup of test resources
@@ -299,7 +303,7 @@ let job_name = "test-multi-addprocs"
                 return pod
             end
 
-            mgr = K8sClusterManager(1; configure, pending_timeout=60, cpu="0.5", memory="300Mi")
+            mgr = K8sClusterManager(1; configure, worker_prefix, pending_timeout=60, cpu="0.5", memory="300Mi")
             addprocs(mgr)
             addprocs(mgr)
 
@@ -319,8 +323,8 @@ let job_name = "test-multi-addprocs"
         @info "Waiting for $job_name job. This could take up to 4 minutes..."
         wait_job(job_name, condition=!isempty, timeout=4 * 60)
 
-        manager_pod = first(pod_names("job-name" => job_name))
-        worker_pods = pod_names("manager" => manager_pod; sort_by="{.metadata.labels.worker-id}")
+        manager_pod = only(pod_names("job-name" => job_name))
+        worker_pods = pod_names("worker-prefix" => worker_prefix; sort_by="{.metadata.labels.worker-id}")
 
         manager_log = pod_logs(manager_pod)
         matches = collect(eachmatch(POD_NAME_REGEX, manager_log))
@@ -363,8 +367,10 @@ end
 
 let job_name = "test-interrupt"
     @testset "$job_name" begin
+        worker_prefix = "$(job_name)-worker"
         code = """
             using Distributed, K8sClusterManagers
+            worker_prefix = "$worker_prefix"
 
             function configure(pod)
                 # Add a origin label for easy cleanup of test resources
@@ -375,7 +381,7 @@ let job_name = "test-interrupt"
                 return pod
             end
 
-            mgr = K8sClusterManager(1; configure, pending_timeout=60, cpu="0.5", memory="300Mi")
+            mgr = K8sClusterManager(1; configure, worker_prefix, pending_timeout=60, cpu="0.5", memory="300Mi")
             pids = addprocs(mgr)
             interrupt(pids)
             """
@@ -389,8 +395,8 @@ let job_name = "test-interrupt"
         @info "Waiting for $job_name job. This could take up to 4 minutes..."
         wait_job(job_name, condition=!isempty, timeout=4 * 60)
 
-        manager_pod = first(pod_names("job-name" => job_name))
-        worker_pod = first(pod_names("manager" => manager_pod))
+        manager_pod = only(pod_names("job-name" => job_name))
+        worker_pod = only(pod_names("worker-prefix" => worker_prefix))
 
         manager_log = pod_logs(manager_pod)
 
@@ -415,8 +421,10 @@ end
 
 let job_name = "test-oom"
     @testset "$job_name" begin
+        worker_prefix = "$(job_name)-worker"
         code = """
             using Distributed, K8sClusterManagers
+            worker_prefix = "$worker_prefix"
 
             function configure(pod)
                 # Add a origin label for easy cleanup of test resources
@@ -427,7 +435,7 @@ let job_name = "test-oom"
                 return pod
             end
 
-            mgr = K8sClusterManager(1; configure, pending_timeout=60, cpu="0.5", memory="300Mi")
+            mgr = K8sClusterManager(1; configure, worker_prefix, pending_timeout=60, cpu="0.5", memory="300Mi")
             pids = addprocs(mgr)
 
             @everywhere begin
@@ -461,8 +469,8 @@ let job_name = "test-oom"
         @info "Waiting for $job_name job. This could take up to 4 minutes..."
         wait_job(job_name, condition=!isempty, timeout=4 * 60)
 
-        manager_pod = first(pod_names("job-name" => job_name))
-        worker_pod = first(pod_names("manager" => manager_pod))
+        manager_pod = only(pod_names("job-name" => job_name))
+        worker_pod = only(pod_names("worker-prefix" => worker_prefix))
 
         manager_log = pod_logs(manager_pod)
         worker_oom_msg = "Worker 2 on pod $worker_pod was terminated due to: OOMKilled"
