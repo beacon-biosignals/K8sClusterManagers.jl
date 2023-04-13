@@ -101,6 +101,10 @@ function Distributed.launch(manager::K8sClusterManager, params::Dict, launched::
     # Note: User-defined `configure` function may or may-not be mutating
     worker_manifest = manager.configure(worker_manifest)
 
+    # Trigger any TOTP requests before the async loop
+    # TODO: Verify this is working correctly
+    success(`$(kubectl()) get pods -o 'jsonpath={.items[*].metadata.null}'`)
+
     @sync for i in 1:manager.np
         @async begin
             pod_name = create_pod(worker_manifest)
