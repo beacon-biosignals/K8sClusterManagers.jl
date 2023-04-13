@@ -230,7 +230,7 @@ let test_name = "test-k8s-external-manager"
         @test !isk8s()
 
         worker_ids = addprocs(K8sClusterManager(1; configure, worker_prefix, pending_timeout=60, cpu="0.5", memory="300Mi"))
-        @test nworkers() == 1
+        @test nprocs() == 2
 
         worker_id = only(worker_ids)
         worker_pod = remotecall_fetch(gethostname, worker_id)
