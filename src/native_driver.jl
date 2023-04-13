@@ -96,7 +96,7 @@ function Distributed.launch(manager::K8sClusterManager, params::Dict, launched::
 
     cmd = `$exename $exeflags --worker=$(cluster_cookie())`
 
-    worker_manifest = worker_pod_spec(manager; cmd)
+    worker_manifest = worker_pod_spec(manager; cmd, cluster_cookie=cluster_cookie())
 
     # Note: User-defined `configure` function may or may-not be mutating
     worker_manifest = manager.configure(worker_manifest)
