@@ -109,6 +109,9 @@ function Distributed.launch(manager::K8sClusterManager, params::Dict, launched::
         @async begin
             pod_name = create_pod(worker_manifest)
 
+            # TODO: Add notice about having to pull an image. On a slow internet connection
+            # this can make it appear that the cluster start is hung
+
             pod = try
                 wait_for_running_pod(pod_name; timeout=manager.pending_timeout)
             catch e
