@@ -7,22 +7,41 @@
 
 A Julia cluster manager for provisioning workers in a Kubernetes (K8s) cluster.
 
-Pairs well with [`julia_pod`](https://github.com/beacon-biosignals/julia_pod) for interactive Julia development within a K8s pod. 
-
 ## K8sClusterManager
 
-The `K8sClusterManager` is intended to be used from a Pod running inside a Kubernetes
-cluster.
+The `K8sClusterManager` can be used both inside and outside of a Kubernetes cluster.
+To get started you'll need access to a K8s cluster and have configured your machine with
+access to the cluster. If you're new to K8s we recommend you use use [minikube](https://minikube.sigs.k8s.io)
+to quickly setup a local Kubernetes cluster.
 
-Assuming you have `kubectl` installed locally and configured to connect to a cluster, you
-can easily create an interactive Julia REPL session running from within the cluster by
-executing:
+### Running outside K8s
+
+A distributed Julia cluster where the manager runs outside of K8s while the workers run in
+the cluster can quickly be created via:
+
+```julia
+julia> using K8sClusterManagers, Distributed
+
+julia> addprocs(K8sClusterManager(2))
+```
+
+When using the manager outside of Kubernetes cluster the manager will connect to workers
+within the cluster using port-forwarding. Performance between the manager and workers will
+be impacted by the network connection between the manager and the cluster.
+
+### Running inside K8s
+
+A Julia process running within a K8s cluster can also be used as a Julia distributed
+manager.
+
+To see this in action we'll create an interactive Julia REPL session running within the
+cluster by executing:
 
 ```sh
 kubectl run -it example-manager-pod --image julia:1
 ```
 
-Or equivalently, using a K8s manifest named `example-manager-pod.yaml` containing:
+or equivalently, using a K8s manifest named `example-manager-pod.yaml` containing:
 
 ```yaml
 apiVersion: v1

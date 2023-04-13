@@ -214,7 +214,8 @@ end
 function Distributed.connect(manager::K8sClusterManager, pid::Int, config::WorkerConfig)
     if config.connect_at !== nothing
         # this is a worker-to-worker setup call.
-        return Distributed.connect_w2w(pid, config)
+        # return Distributed.connect_w2w(pid, config)
+        error("foo")
     end
 
     # master connecting to workers
