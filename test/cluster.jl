@@ -27,6 +27,10 @@ end
 const JOB_TEMPLATE = Mustache.load(joinpath(@__DIR__, "job.template.yaml"))
 const TEST_IMAGE = get(ENV, "K8S_CLUSTER_MANAGERS_TEST_IMAGE", "k8s-cluster-managers:$TAG")
 
+# A unique identifier for each test run. Having this ensures that failures in previous runs, which
+# won't automatically be cleaned up, do not interfere with new runs.
+const TEST_RUN = randsuffix()
+
 # Add a labels for easy cleanup of test resources. Any changes to these common labels also
 # needs to occur in the YAML files included in the test directory
 # e.g. `kubectl delete pod,job,sa,role,rolebinding -l package-test=K8sClusterManagers.jl`
@@ -69,7 +73,7 @@ end
         # Note: We do not want to use "generateName" here we want to use the same name when we
         # call `create_pod` multiple times. However, we do want to avoid conflicts with previous
         # `Pkg.test` executions.
-        name = "test-pod-control-named-" * randsuffix()
+        name = "test-pod-control-$TEST_RUN-named"
         delete!(manifest["metadata"], "generateName")
         manifest["metadata"]["name"] = name
 
@@ -128,7 +132,7 @@ end
     @testset "generate name" begin
         manifest = deepcopy(pod_control_manifest)
 
-        prefix = "test-pod-control-generate-name-"
+        prefix = "test-pod-control-$TEST_RUN-generate-name-"
         manifest["metadata"]["generateName"] = prefix
 
         name_a = create_pod(manifest)
@@ -144,7 +148,7 @@ end
 
     @testset "exec" begin
         manifest = deepcopy(pod_control_manifest)
-        manifest["metadata"]["generateName"] = "test-pod-control-exec-"
+        manifest["metadata"]["generateName"] = "test-pod-control-$TEST_RUN-exec-"
 
         name = create_pod(manifest)
         wait_for_running_pod(name; timeout=30)
@@ -167,8 +171,10 @@ end
     end
 end
 
-let job_name = "test-isk8s"
-    @testset "$job_name" begin
+let test_name = "test-isk8s"
+    @testset "$test_name" begin
+        job_name = "$(test_name)-$(TEST_RUN)"
+
         code = """
             using K8sClusterManagers
             println("isk8s: ", isk8s())
@@ -211,15 +217,17 @@ let job_name = "test-isk8s"
     end
 end
 
-let job_name = "test-success"
-    @testset "$job_name" begin
+let test_name = "test-success"
+    @testset "$test_name" begin
+        job_name = "$(test_name)-$(TEST_RUN)"
         worker_prefix = "$(job_name)-worker"
+
         code = """
             using Distributed, K8sClusterManagers
             worker_prefix = "$worker_prefix"
 
             function configure(pod)
-                push!(pod["metadata"]["labels"], "test" => "$job_name", $COMMON_LABELS...)
+                push!(pod["metadata"]["labels"], "test" => "$test_name", $COMMON_LABELS...)
 
                 # Avoid trying to pull local-only image
                 pod["spec"]["containers"][1]["imagePullPolicy"] = "Never"
@@ -291,15 +299,17 @@ let job_name = "test-success"
     end
 end
 
-let job_name = "test-multi-addprocs"
-    @testset "$job_name" begin
+let test_name = "test-multi-addprocs"
+    @testset "$test_name" begin
+        job_name = "$(test_name)-$(TEST_RUN)"
         worker_prefix = "$(job_name)-worker"
+
         code = """
             using Distributed, K8sClusterManagers
             worker_prefix = "$worker_prefix"
 
             function configure(pod)
-                push!(pod["metadata"]["labels"], "test" => "$job_name", $COMMON_LABELS...)
+                push!(pod["metadata"]["labels"], "test" => "$test_name", $COMMON_LABELS...)
 
                 # Avoid trying to pull local-only image
                 pod["spec"]["containers"][1]["imagePullPolicy"] = "Never"
@@ -368,15 +378,17 @@ let job_name = "test-multi-addprocs"
     end
 end
 
-let job_name = "test-interrupt"
-    @testset "$job_name" begin
+let test_name = "test-interrupt"
+    @testset "$test_name" begin
+        job_name = "$(test_name)-$(TEST_RUN)"
         worker_prefix = "$(job_name)-worker"
+
         code = """
             using Distributed, K8sClusterManagers
             worker_prefix = "$worker_prefix"
 
             function configure(pod)
-                push!(pod["metadata"]["labels"], "test" => "$job_name", $COMMON_LABELS...)
+                push!(pod["metadata"]["labels"], "test" => "$test_name", $COMMON_LABELS...)
 
                 # Avoid trying to pull local-only image
                 pod["spec"]["containers"][1]["imagePullPolicy"] = "Never"
@@ -421,15 +433,17 @@ let job_name = "test-interrupt"
     end
 end
 
-let job_name = "test-oom"
-    @testset "$job_name" begin
+let test_name = "test-oom"
+    @testset "$test_name" begin
+        job_name = "$(test_name)-$(TEST_RUN)"
         worker_prefix = "$(job_name)-worker"
+
         code = """
             using Distributed, K8sClusterManagers
             worker_prefix = "$worker_prefix"
 
             function configure(pod)
-                push!(pod["metadata"]["labels"], "test" => "$job_name", $COMMON_LABELS...)
+                push!(pod["metadata"]["labels"], "test" => "$test_name", $COMMON_LABELS...)
 
                 # Avoid trying to pull local-only image
                 pod["spec"]["containers"][1]["imagePullPolicy"] = "Never"
@@ -498,13 +512,16 @@ let job_name = "test-oom"
     end
 end
 
-let job_name = "test-pending-timeout"
-    @testset "$job_name" begin
+let test_name = "test-pending-timeout"
+    @testset "$test_name" begin
+        job_name = "$(test_name)-$(TEST_RUN)"
+        worker_prefix = "$(job_name)-worker-"
+
         code = """
             using Distributed, K8sClusterManagers
 
             function configure(pod)
-                push!(pod["metadata"]["labels"], "test" => "$job_name", $COMMON_LABELS...)
+                push!(pod["metadata"]["labels"], "test" => "$test_name", $COMMON_LABELS...)
 
                 # Avoid trying to pull local-only image
                 pod["spec"]["containers"][1]["imagePullPolicy"] = "Never"
