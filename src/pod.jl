@@ -192,11 +192,11 @@ end
 
 function worker_pod_spec!(pod::AbstractDict;
                           worker_prefix::AbstractString,
-                          cluster_cookie::AbstractString,
                           image::AbstractString,
                           cmd::Cmd,
                           cpu=DEFAULT_WORKER_CPU,
                           memory=DEFAULT_WORKER_MEMORY,
+                          cluster_cookie::AbstractString=cluster_cookie(),
                           service_account_name=nothing)
     pod["metadata"]["generateName"] = "$(worker_prefix)-"
 
