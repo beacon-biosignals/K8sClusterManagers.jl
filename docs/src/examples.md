@@ -1,16 +1,15 @@
 Examples
 ========
 
-The [`K8sClusterManager`](@ref) is intended to be used inside a [Pod](https://kubernetes.io/docs/concepts/workloads/pods/)
-running on a Kubernetes cluster.
+The `K8sClusterManager` can be used both inside and outside of a Kubernetes cluster.
 
 ## Launching an interactive session
 
 The following manifest will create a Kubernetes [Job](https://kubernetes.io/docs/concepts/workloads/controllers/job/)
-named "interactive-session". This Job will spawn a Pod (see `spec.template.spec`) which will
-run an interactive Julia session with the latest release of K8sClusterManagers.jl installed.
-Be sure to create the required [ServiceAccount and associated permissions](../patterns/#required-permissions)
-before proceeding.
+named "interactive-session". This Job will spawn a [Pod](https://kubernetes.io/docs/concepts/workloads/pods/)
+(see `spec.template.spec`) which will run an interactive Julia session with the latest
+release of K8sClusterManagers.jl installed. Be sure to create the required [ServiceAccount
+and associated permissions](../patterns/#required-permissions) before proceeding.
 
 ````@eval
 using Markdown
@@ -36,11 +35,12 @@ echo $manager_pod
 kubectl attach -it pod/${manager_pod?}
 ```
 
-### Launching workers
+## Launching workers
 
-Once you've attached to the interactive session you can use [`K8sClusterManager`](@ref) to
-spawn K8s workers. For our example we'll be using a small amount of CPU/Memory to ensure
-workers can be spawned even on clusters with limited resources:
+You can use [`K8sClusterManager`](@ref) to spawn workers within the K8s cluster. The cluster
+manager can be used both inside/outside of the K8s cluster. In the following example we'll
+be using a small amount of CPU/Memory to ensure workers can be spawned even on clusters with
+limited resources:
 
 ```julia
 julia> using Distributed, K8sClusterManagers
@@ -61,7 +61,7 @@ julia> pmap(x -> myid(), 1:nworkers())  # Each worker reports its worker ID
  2
 ```
 
-### Pending workers
+## Pending workers
 
 A worker created via `addprocs` may not necessarily be available right away, as K8s must
 schedule the worker's Pod to a Node before the corresponding Julia process can start.
@@ -74,7 +74,7 @@ the manager will continue with the subset of workers which have reported in and 
 workers that are stuck in the "Pending" phase.
 
 ```julia
-julia> addprocs(K8sClusterManager(1, memory="1Ei", pending_timeout=10))  # Request 1 exbibyte of memory
+julia> addprocs(K8sClusterManager(1, memory="1Pi", pending_timeout=10))  # Request 1 pebibyte of memory
 ┌ Warning: TimeoutException: timed out after waiting for worker interactive-session-d7jfb-worker-ffvnm to start for 10 seconds, with status:
 │ {
 │     "conditions": [
@@ -94,7 +94,7 @@ julia> addprocs(K8sClusterManager(1, memory="1Ei", pending_timeout=10))  # Reque
 Int64[]
 ```
 
-### Termination Reason
+## Termination Reason
 
 When Julia workers [exceed the specified memory limit](https://kubernetes.io/docs/tasks/configure-pod-container/assign-memory-resource/#exceed-a-container-s-memory-limit)
 the worker Pod will be automatically killed by Kubernetes (OOMKilled). In such a
