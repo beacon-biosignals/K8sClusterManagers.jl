@@ -1,9 +1,6 @@
 const DEFAULT_WORKER_CPU = 1
 const DEFAULT_WORKER_MEMORY = "4Gi"
 
-const WORKER_BIND_ADDR = "0.0.0.0"
-const WORKER_BIND_PORT = 9050
-
 # Notifies tasks that the abnormal worker deregistration warning has been emitted
 const DEREGISTER_ALERT = Condition()
 
@@ -106,7 +103,10 @@ function Distributed.launch(manager::K8sClusterManager, params::Dict, launched::
         exename = "julia"
     end
 
-    cmd = `$exename $exeflags --worker=$(cluster_cookie()) --bind-to=$WORKER_BIND_ADDR:$WORKER_BIND_PORT`
+    # Using `--bind-to=0.0.0.0` to force the worker to listen to all interfaces instead
+    # of only a single external interface. This is required for `kubectl port-forward`.
+    # TODO: Should file against the Julia repo about this issue.
+    cmd = `$exename $exeflags --worker=$(cluster_cookie()) --bind-to=0.0.0.0`
 
     worker_manifest = worker_pod_spec(manager; cmd)
 
@@ -137,18 +137,6 @@ function Distributed.launch(manager::K8sClusterManager, params::Dict, launched::
             if pod !== nothing
                 @info "$pod_name is up"
 
-                # Using `--bind-to` to set the port above also requires us to specify the
-                # hostname to listen to. We use the placeholder address `0.0.0.0` to listen
-                # allow the worker to listen to all addresses assigned to the host but doing
-                # this results in `read_worker_host_port` using this nonroutable address. To
-                # work around this we'll issue a command on the pod to determine it's in
-                # cluster IP address.
-                #
-                # Alternatively, we could use custom `start_worker` function which would
-                # allow us to just specify the port but this was easier.
-                io = open(`$(kubectl()) exec pod/$pod_name -- $exename -e 'using Sockets; println(join(getipaddrs(), "\n"))'`)
-                intra_addr = readline(io)
-
                 # Redirect any stdout/stderr from the worker to be displayed on the manager.
                 # Note: `start_worker` (via `--worker`) automatically redirects stderr to
                 # stdout.
@@ -156,7 +144,7 @@ function Distributed.launch(manager::K8sClusterManager, params::Dict, launched::
 
                 config = WorkerConfig()
                 config.io = p.out
-                config.userdata = (; pod_name, port_forward=Ref{Base.Process}(), intra_addr)
+                config.userdata = (; pod_name, port_forward=Ref{Base.Process}())
 
                 push!(launched, config)
                 notify(c)
@@ -238,18 +226,18 @@ function Distributed.connect(manager::K8sClusterManager, pid::Int, config::Worke
         error("I/O not setup")
     end
 
-    if bind_addr == WORKER_BIND_ADDR && port == WORKER_BIND_PORT
-        intra_addr = config.userdata.intra_addr
-        intra_port = port
-    else
-        error("Encountered unexpected address/port: $bind_addr:$port")
-    end
+    pod_name = config.userdata.pod_name
+
+    # As we've forced the worker to listen to all interfaces the reported `bind_addr` will
+    # be a non-routable address. We'll need to determine the in cluster IP address another
+    # way.
+    intra_addr = get_pod(pod_name)["status"]["podIP"]
+    intra_port = port
 
     bind_addr, port = if !isk8s()
         # When the manager running outside of the K8s cluster we need to establish
         # port-forward connections from the manager to the workers.
-        pod_name = config.userdata.pod_name
-        pf = open(`$(kubectl()) port-forward --address 127.0.0.1 $pod_name :$WORKER_BIND_PORT`, "r+")
+        pf = open(`$(kubectl()) port-forward --address localhost pod/$pod_name :$intra_port`, "r")
         fwd_addr, fwd_port = parse_forward_info(readline(pf.out))
 
         # Retain a reference to the port forward
