@@ -52,7 +52,7 @@ Now in this Julia REPL session, you can do add two workers via:
 ```julia
 julia> using Pkg; Pkg.add("K8sClusterManagers")
 
-julia> using K8sClusterManagers
+julia> using K8sClusterManagers, Distributed
 
 julia> addprocs(K8sClusterManager(2))
 ```
