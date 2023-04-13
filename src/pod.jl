@@ -232,3 +232,29 @@ function isk8s()
     # https://kubernetes.io/docs/reference/kubectl/#in-cluster-authentication-and-namespace-overrides
     return haskey(ENV, "KUBERNETES_SERVICE_HOST") && haskey(ENV, "KUBERNETES_SERVICE_PORT")
 end
+
+
+"""
+    pod_zone(pod_name::AbstractString) -> String
+
+Get the zone that the node hosting the current pod is running in.
+"""
+function pod_zone(pod_name::AbstractString)
+    node_name = readchomp(`$(kubectl()) get pod $pod_name -o jsonpath='{.spec.nodeName}'`)
+    return readchomp(`$(kubectl()) get node $node_name -o jsonpath='{.metadata.labels.topology\.kubernetes\.io/zone}'`)
+end
+
+
+"""
+    zone_node_selector!(pod) -> Dict
+
+Add a nodeSelector to a new pod that will ensure that it runs in the same zone
+as the manager pod.
+"""
+function zone_node_selector!(pod)
+    manager_name = pod["metadata"]["labels"]["manager"]
+    zone = pod_zone(manager_name)
+    node_selector = get!(pod["spec"], "nodeSelector", Dict())
+    node_selector["topology.kubernetes.io/zone"] = zone
+    return pod
+end
