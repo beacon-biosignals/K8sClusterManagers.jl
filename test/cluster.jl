@@ -44,14 +44,15 @@ const POD_OUTPUT_REGEX = r"From worker (?<worker_id>\d+):\s+(?<output>.*?)\r?\n"
 # As a convenience we'll automatically build the Docker image when a user uses `Pkg.test()`.
 # If the environmental variable is set we expect the Docker image has already been built.
 if !haskey(ENV, "K8S_CLUSTER_MANAGERS_TEST_IMAGE")
+    build_cmd = `docker build --build-arg BASE_IMAGE=julia:$VERSION -t $TEST_IMAGE $PKG_DIR`
     if readchomp(`$(kubectl) config current-context`) == "minikube" && !haskey(ENV, "MINIKUBE_ACTIVE_DOCKERD")
         # When using a minikue cluster we need to build the image within the minikube
         # environment otherwise we'll see pods fail with the reason "ErrImageNeverPull".
         withenv(minikube_docker_env()...) do
-            run(`docker build -t $TEST_IMAGE $PKG_DIR`)
+            run(build_cmd)
         end
     else
-        run(`docker build -t $TEST_IMAGE $PKG_DIR`)
+        run(build_cmd)
     end
 
     # Alternate build call which works on Apple Silicon
