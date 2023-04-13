@@ -27,6 +27,11 @@ end
 const JOB_TEMPLATE = Mustache.load(joinpath(@__DIR__, "job.template.yaml"))
 const TEST_IMAGE = get(ENV, "K8S_CLUSTER_MANAGERS_TEST_IMAGE", "k8s-cluster-managers:$TAG")
 
+# Add a labels for easy cleanup of test resources. Any changes to these common labels also
+# needs to occur in the YAML files included in the test directory
+# e.g. `kubectl delete pod,job,sa,role,rolebinding -l package-test=K8sClusterManagers.jl`
+const COMMON_LABELS = ("package-test" => "K8sClusterManagers.jl",)
+
 const POD_NAME_REGEX = r"Worker pod (?<worker_id>\d+): (?<pod_name>[a-z0-9.-]+)"
 
 # Note: Regex should be generic enough to capture any stray output from the workers
@@ -214,8 +219,7 @@ let job_name = "test-success"
             worker_prefix = "$worker_prefix"
 
             function configure(pod)
-                # Add a origin label for easy cleanup of test resources
-                push!(pod["metadata"]["labels"], "origin" => "k8s-cluster-manager-tests")
+                push!(pod["metadata"]["labels"], "test" => "$job_name", $COMMON_LABELS...)
 
                 # Avoid trying to pull local-only image
                 pod["spec"]["containers"][1]["imagePullPolicy"] = "Never"
@@ -295,8 +299,7 @@ let job_name = "test-multi-addprocs"
             worker_prefix = "$worker_prefix"
 
             function configure(pod)
-                # Add a origin label for easy cleanup of test resources
-                push!(pod["metadata"]["labels"], "origin" => "k8s-cluster-manager-tests")
+                push!(pod["metadata"]["labels"], "test" => "$job_name", $COMMON_LABELS...)
 
                 # Avoid trying to pull local-only image
                 pod["spec"]["containers"][1]["imagePullPolicy"] = "Never"
@@ -373,8 +376,7 @@ let job_name = "test-interrupt"
             worker_prefix = "$worker_prefix"
 
             function configure(pod)
-                # Add a origin label for easy cleanup of test resources
-                push!(pod["metadata"]["labels"], "origin" => "k8s-cluster-manager-tests")
+                push!(pod["metadata"]["labels"], "test" => "$job_name", $COMMON_LABELS...)
 
                 # Avoid trying to pull local-only image
                 pod["spec"]["containers"][1]["imagePullPolicy"] = "Never"
@@ -427,8 +429,7 @@ let job_name = "test-oom"
             worker_prefix = "$worker_prefix"
 
             function configure(pod)
-                # Add a origin label for easy cleanup of test resources
-                push!(pod["metadata"]["labels"], "origin" => "k8s-cluster-manager-tests")
+                push!(pod["metadata"]["labels"], "test" => "$job_name", $COMMON_LABELS...)
 
                 # Avoid trying to pull local-only image
                 pod["spec"]["containers"][1]["imagePullPolicy"] = "Never"
@@ -503,8 +504,7 @@ let job_name = "test-pending-timeout"
             using Distributed, K8sClusterManagers
 
             function configure(pod)
-                # Add a origin label for easy cleanup of test resources
-                push!(pod["metadata"]["labels"], "origin" => "k8s-cluster-manager-tests")
+                push!(pod["metadata"]["labels"], "test" => "$job_name", $COMMON_LABELS...)
 
                 # Avoid trying to pull local-only image
                 pod["spec"]["containers"][1]["imagePullPolicy"] = "Never"
