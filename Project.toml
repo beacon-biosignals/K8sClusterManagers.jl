@@ -1,6 +1,6 @@
 name = "K8sClusterManagers"
 uuid = "5aeab163-63d2-4171-9fbf-e22244d80acb"
-version = "0.1.4"
+version = "0.1.5"
 
 [deps]
 Compat = "34da2185-b29b-5c13-b0c7-acf172513d20"
