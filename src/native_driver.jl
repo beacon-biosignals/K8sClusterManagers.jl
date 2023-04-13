@@ -212,11 +212,11 @@ end
 # Stripped down and modified version of:
 # https://github.com/JuliaLang/julia/blob/844c20dd63870aa5b369b85038f0523d7d79308a/stdlib/Distributed/src/managers.jl#L567-L632
 function Distributed.connect(manager::K8sClusterManager, pid::Int, config::WorkerConfig)
-    if config.connect_at !== nothing
-        # this is a worker-to-worker setup call.
-        # return Distributed.connect_w2w(pid, config)
-        error("foo")
-    end
+    # Note: This method currently doesn't implement support for worker-to-worker
+    # connections and instead relies on the `Distributed.connect(::DefaultClusterManager, ...)`
+    # for this. If we did need to perform special logic for worker-to-worker connections
+    # we would need to modify how `init_worker` is called via `start_worker`:
+    # https://github.com/JuliaLang/julia/blob/f7554b5c9f0f580a9fcf5c7b8b9a83b678e2f48a/stdlib/Distributed/src/cluster.jl#L375-L378
 
     # master connecting to workers
     if config.io !== nothing
