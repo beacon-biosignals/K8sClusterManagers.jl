@@ -1,6 +1,9 @@
 const DEFAULT_WORKER_CPU = 1
 const DEFAULT_WORKER_MEMORY = "4Gi"
 
+const WORKER_BIND_ADDR = "0.0.0.0"
+const WORKER_BIND_PORT = 9050
+
 # Notifies tasks that the abnormal worker deregistration warning has been emitted
 const DEREGISTER_ALERT = Condition()
 
@@ -33,9 +36,10 @@ available.
 - `manager_pod_name`: the name of the manager pod. Defaults to `gethostname()` which is
   the name of the pod when executed inside of a Kubernetes pod.
 - `worker_prefix`: the prefix given to spawned workers. Defaults to
-  `"\$(manager_pod_name)-worker"`.
-- `image`: Docker image to use for the workers. Defaults to using the image of the Julia
-  caller if running within a pod using a single container otherwise is a required argument.
+  `"\$(manager_pod_name)-worker"` when the manager is running inside of K8s otherwise
+  defaults to `"$(gethostname())-worker`.
+- `image`: Docker image to use for the workers. Defaults to the image used by the manager
+  when running inside of a K8s pod otherwise defaults to "julia:\$VERSION".
 - `cpu`: [CPU resources requested](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#meaning-of-cpu)
   for each worker. Defaults to `$(repr(DEFAULT_WORKER_CPU))`,
 - `memory`: [Memory resource requested](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/#meaning-of-memory)
@@ -49,25 +53,27 @@ available.
 """
 function K8sClusterManager(np::Integer;
                            namespace::AbstractString=current_namespace(),
-                           manager_pod_name=gethostname(),
-                           worker_prefix::AbstractString="$(manager_pod_name)-worker",
+                           manager_pod_name=isk8s() ? gethostname() : nothing,
+                           worker_prefix::AbstractString="$(@something(manager_pod_name, gethostname()))-worker",
                            image=nothing,
                            cpu=DEFAULT_WORKER_CPU,
                            memory=DEFAULT_WORKER_MEMORY,
                            pending_timeout::Real=180,
                            configure=identity)
-
-    # Default to using the image of the pod if possible
     if image === nothing
-        pod = get_pod(manager_pod_name)
-        images = map(c -> c["image"], pod["spec"]["containers"])
+        if manager_pod_name !== nothing
+            pod = get_pod(manager_pod_name)
+            images = map(c -> c["image"], pod["spec"]["containers"])
 
-        if length(images) == 1
-            image = first(images)
-        elseif length(images) > 0
-            error("Unable to determine image from pod \"$manager_pod_name\" which uses multiple containers")
+            if length(images) == 1
+                image = first(images)
+            elseif length(images) > 0
+                error("Unable to determine image from pod \"$manager_pod_name\" which uses multiple containers")
+            else
+                error("Unable to find any images for pod \"$manager_pod_name\"")
+            end
         else
-            error("Unable to find any images for pod \"$manager_pod_name\"")
+            image = "julia:$VERSION"
         end
     end
 
@@ -94,7 +100,13 @@ function Distributed.launch(manager::K8sClusterManager, params::Dict, launched::
     exename = params[:exename]
     exeflags = params[:exeflags]
 
-    cmd = `$exename $exeflags --worker=$(cluster_cookie())`
+    # When using a standard Julia Docker image we can safely set the Julia executable name
+    # Alternatively, we could extend `Distributed.default_addprocs_params`.
+    if startswith(manager.image, "julia:")
+        exename = "julia"
+    end
+
+    cmd = `$exename $exeflags --worker=$(cluster_cookie()) --bind-to=$WORKER_BIND_ADDR:$WORKER_BIND_PORT`
 
     worker_manifest = worker_pod_spec(manager; cmd)
 
@@ -125,6 +137,18 @@ function Distributed.launch(manager::K8sClusterManager, params::Dict, launched::
             if pod !== nothing
                 @info "$pod_name is up"
 
+                # Using `--bind-to` to set the port above also requires us to specify the
+                # hostname to listen to. We use the placeholder address `0.0.0.0` to listen
+                # allow the worker to listen to all addresses assigned to the host but doing
+                # this results in `read_worker_host_port` using this nonroutable address. To
+                # work around this we'll issue a command on the pod to determine it's in
+                # cluster IP address.
+                #
+                # Alternatively, we could use custom `start_worker` function which would
+                # allow us to just specify the port but this was easier.
+                io = open(`$(kubectl()) exec pod/$pod_name -- $exename -e 'using Sockets; println(join(getipaddrs(), "\n"))'`)
+                intra_addr = readline(io)
+
                 # Redirect any stdout/stderr from the worker to be displayed on the manager.
                 # Note: `start_worker` (via `--worker`) automatically redirects stderr to
                 # stdout.
@@ -132,7 +156,7 @@ function Distributed.launch(manager::K8sClusterManager, params::Dict, launched::
 
                 config = WorkerConfig()
                 config.io = p.out
-                config.userdata = (; pod_name=pod_name)
+                config.userdata = (; pod_name, port_forward=Ref{Base.Process}(), intra_addr)
 
                 push!(launched, config)
                 notify(c)
@@ -163,6 +187,13 @@ function Distributed.manage(manager::K8sClusterManager, id::Integer, config::Wor
         end
 
     elseif op === :deregister
+        # Terminate the port-forward process. Without this these processes may
+        # persist until terminated by the cluster (e.g. `minikube stop`).
+        pf = config.userdata.port_forward
+        if isassigned(pf)
+            kill(pf[])
+        end
+
         # As the deregister `manage` call occurs before remote workers are told to
         # deregister we should avoid unnecessarily blocking.
         @async begin
@@ -185,5 +216,70 @@ function Distributed.manage(manager::K8sClusterManager, id::Integer, config::Wor
 
             notify(DEREGISTER_ALERT; all=true)
         end
+    end
+
+    return nothing
+end
+
+# Stripped down and modified version of:
+# https://github.com/JuliaLang/julia/blob/844c20dd63870aa5b369b85038f0523d7d79308a/stdlib/Distributed/src/managers.jl#L567-L632
+function Distributed.connect(manager::K8sClusterManager, pid::Int, config::WorkerConfig)
+    if config.connect_at !== nothing
+        # this is a worker-to-worker setup call.
+        return Distributed.connect_w2w(pid, config)
+    end
+
+    # master connecting to workers
+    if config.io !== nothing
+        # Not truly needed as we already know this information but since we are using `--worker`
+        # we may as well follow the standard protocol
+        bind_addr, port = Distributed.read_worker_host_port(config.io)
+    else
+        error("I/O not setup")
+    end
+
+    if bind_addr == WORKER_BIND_ADDR && port == WORKER_BIND_PORT
+        intra_addr = config.userdata.intra_addr
+        intra_port = port
+    else
+        error("Encountered unexpected address/port: $bind_addr:$port")
+    end
+
+    bind_addr, port = if !isk8s()
+        # When the manager running outside of the K8s cluster we need to establish
+        # port-forward connections from the manager to the workers.
+        pod_name = config.userdata.pod_name
+        pf = open(`$(kubectl()) port-forward --address 127.0.0.1 $pod_name :$WORKER_BIND_PORT`, "r+")
+        fwd_addr, fwd_port = parse_forward_info(readline(pf.out))
+
+        # Retain a reference to the port forward
+        config.userdata.port_forward[] = pf
+
+        fwd_addr, fwd_port
+    else
+        intra_addr, intra_port
+    end
+
+    s, bind_addr = Distributed.connect_to_worker(bind_addr, port)
+    config.bind_addr = bind_addr
+
+    # write out a subset of the connect_at required for further worker-worker connection setups
+    config.connect_at = (intra_addr, Int(intra_port))
+
+    if config.io !== nothing
+        let pid = pid
+            Distributed.redirect_worker_output(pid, Base.notnothing(config.io))
+        end
+    end
+
+    return (s, s)
+end
+
+function parse_forward_info(str)
+    m = match(r"^Forwarding from (.*):(\d+) ->", str)
+    if m !== nothing
+        return (m.captures[1], parse(UInt16, m.captures[2]))
+    else
+        error("Unable to parse port-forward response")
     end
 end

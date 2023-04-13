@@ -56,6 +56,12 @@ function pod_names(labels::Pair...; sort_by=nothing)
     return !isempty(output) ? split(output, '\n') : String[]
 end
 
+function pod_images(pod_name)
+    jsonpath = """{range .spec.containers[*]}{.image}{"\\n"}{end}"""
+    output = readchomp(`$(kubectl()) get pod/$pod_name -o jsonpath=$jsonpath`)
+    return split(output, '\n'; keepempty=false)
+end
+
 # Use the double-quoted flow scalar style to allow us to have a YAML string which includes
 # newlines without being aware of YAML indentation (block styles)
 #

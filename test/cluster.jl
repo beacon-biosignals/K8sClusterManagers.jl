@@ -211,7 +211,47 @@ let job_name = "test-isk8s"
     end
 end
 
-let job_name = "test-success"
+let test_name = "test-k8s-external-manager"
+    @testset "$test_name" begin
+        worker_prefix = "$(test_name)-worker"
+        function configure(pod)
+            push!(pod["metadata"]["labels"], "test" => test_name, COMMON_LABELS...)
+            return pod
+        end
+
+        # Manager must be running outside of a K8s cluster for these tests
+        @test !isk8s()
+
+        worker_ids = addprocs(K8sClusterManager(1; configure, worker_prefix, pending_timeout=60, cpu="0.5", memory="300Mi"))
+        @test nworkers() == 1
+
+        worker_id = only(worker_ids)
+        worker_pod = remotecall_fetch(gethostname, worker_id)
+
+        @test pod_exists(worker_pod)
+        @test pod_phase(worker_pod) == "Running"
+
+        # Worker image should default to the standard Julia docker image when the manager
+        # isn't running as a K8s pod
+        @test only(pod_images(worker_pod)) == "julia:$VERSION"
+
+        # Execute code on remote worker
+        @test remotecall_fetch(myid, worker_id) == worker_id
+
+        rmprocs(worker_id)
+        timedwait(20; pollint=1) do
+            pod_phase(worker_pod) != "Running"
+        end
+
+        # Removed workers should have a return code of zero
+        @test pod_phase(worker_pod) == "Succeeded"
+
+        @info "Deleting pod for $test_name"
+        delete_pod(worker_pod; wait=false)
+    end
+end
+
+let job_name = "test-k8s-internal-manager"
     @testset "$job_name" begin
         worker_prefix = "$(job_name)-worker"
         code = """
@@ -275,6 +315,9 @@ let job_name = "test-success"
             @test length(output_matches) == 1
             @test output_matches[1][:worker_id] == "2"
             @test output_matches[1][:output] == worker_pod
+
+            # Worker image should default to the manager's image
+            @test only(pod_images(worker_pod)) == only(pod_images(manager_pod))
 
             # Ensure there are no unexpected error messages in the log
             @test !occursin(r"\bError\b"i, manager_log)
@@ -368,6 +411,8 @@ let job_name = "test-multi-addprocs"
     end
 end
 
+# Keep this test using a in-cluster manager as the interrupt reports the error in the
+# manager logs
 let job_name = "test-interrupt"
     @testset "$job_name" begin
         worker_prefix = "$(job_name)-worker"

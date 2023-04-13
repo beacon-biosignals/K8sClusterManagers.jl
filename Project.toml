@@ -3,6 +3,7 @@ uuid = "5aeab163-63d2-4171-9fbf-e22244d80acb"
 version = "0.1.4"
 
 [deps]
+Compat = "34da2185-b29b-5c13-b0c7-acf172513d20"
 DataStructures = "864edb3b-99cc-5e75-8d2d-829cb0a9cfe8"
 Distributed = "8ba89e20-285c-5b6f-9357-94700520ee1b"
 JSON = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
@@ -10,6 +11,7 @@ Mocking = "78c3b35d-d492-501b-9361-3d52fe80e533"
 kubectl_jll = "ed23c2a5-89c4-5d52-b0ca-9d53aadf8c45"
 
 [compat]
+Compat = "3.29, 4"
 DataStructures = "0.18"
 JSON = "0.21"
 Mocking = "0.7"

@@ -1,5 +1,6 @@
 module K8sClusterManagers
 
+using Compat: @something
 using DataStructures: DefaultOrderedDict, OrderedDict
 using Distributed: Distributed, ClusterManager, WorkerConfig, cluster_cookie
 using JSON: JSON
