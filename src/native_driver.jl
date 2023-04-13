@@ -108,7 +108,7 @@ function Distributed.launch(manager::K8sClusterManager, params::Dict, launched::
     # TODO: Should file against the Julia repo about this issue.
     cmd = `$exename $exeflags --worker=$(cluster_cookie()) --bind-to=0.0.0.0`
 
-    worker_manifest = worker_pod_spec(manager; cmd)
+    worker_manifest = worker_pod_spec(manager; cmd, cluster_cookie=cluster_cookie())
 
     # Note: User-defined `configure` function may or may-not be mutating
     worker_manifest = manager.configure(worker_manifest)
