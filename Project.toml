@@ -18,7 +18,7 @@ Mocking = "0.7"
 Mustache = "1"
 YAML = "0.4.6"
 julia = "1.6"
-kubectl_jll = "1.20.0"
+kubectl_jll = "1.20"
 
 [extras]
 LibGit2 = "76f85450-5226-5b5a-8eaa-529ad045b433"
